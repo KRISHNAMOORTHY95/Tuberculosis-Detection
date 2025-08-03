@@ -11,7 +11,7 @@ st.title("🩺 Tuberculosis Detection from Chest X-ray")
 # Load model
 @st.cache_resource
 def load_trained_model():
-    return load_model("best_model.h5")  # or .keras if that's your saved file
+    return load_model("ResNet50_best (1).h5")  # or .keras if that's your saved file
 
 model = load_trained_model()
 
