@@ -1,4 +1,3 @@
-!pip install streamlit
 import streamlit as st
 import numpy as np
 from tensorflow.keras.preprocessing import image
@@ -16,7 +15,7 @@ MODEL_OPTIONS = {
 IMG_SIZE = (224, 224)
 
 st.set_page_config(page_title="TB Detection", layout="centered")
-st.title("🮁 Tuberculosis Detection from Chest X-rays")
+st.title("🪁 Tuberculosis Detection from Chest X-rays")
 
 # Model selector
 model_choice = st.selectbox("Choose a model for prediction:", list(MODEL_OPTIONS.keys()))
