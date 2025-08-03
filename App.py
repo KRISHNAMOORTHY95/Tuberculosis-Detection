@@ -11,7 +11,7 @@ st.write("Upload a Chest X-ray image and let the model predict whether TB is pre
 
 @st.cache_resource
 def load_trained_model():
-    model = load_model("ResNet50_best.h5")
+    model = load_model("/content/drive/MyDrive/ResNet50_best.h5")
     return model
 
 model = load_trained_model()
