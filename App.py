@@ -1,49 +1,59 @@
 import streamlit as st
-import numpy as np
-from tensorflow.keras.preprocessing import image
 from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
+import numpy as np
+import os
 from PIL import Image
 
-# Paths
-MODEL_DIR = 'models'
-MODEL_OPTIONS = {
-    'ResNet50': f'{MODEL_DIR}/ResNet50_best.h5',
-    'VGG16': f'{MODEL_DIR}/VGG16_best.h5',
-    'EfficientNetB0': f'{MODEL_DIR}/EfficientNetB0_best.h5',
+# Set model directory
+MODEL_DIR = "models"
+MODEL_FILES = {
+    "ResNet50": "resnet50_model.h5",
+    "VGG16": "vgg16_model.h5",
+    "EfficientNetB0": "efficientnetb0_model.h5"
 }
 
-IMG_SIZE = (224, 224)
-
-st.set_page_config(page_title="TB Detection", layout="centered")
-st.title("🪁 Tuberculosis Detection from Chest X-rays")
-
-# Model selector
-model_choice = st.selectbox("Choose a model for prediction:", list(MODEL_OPTIONS.keys()))
-model_path = MODEL_OPTIONS[model_choice]
-
-# Load model once
 @st.cache_resource
-def load_selected_model(path):
-    return load_model(path)
 
-model = load_selected_model(model_path)
+def load_selected_model(model_path):
+    return load_model(model_path)
 
-# File uploader
-uploaded_file = st.file_uploader("Upload a chest X-ray image", type=["jpg", "jpeg", "png"])
+def predict_tuberculosis(img, model):
+    img = img.resize((224, 224))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array /= 255.0
+    prediction = model.predict(img_array)
+    return prediction[0][0] > 0.5
 
-if uploaded_file:
-    img = Image.open(uploaded_file).convert('RGB')
-    st.image(img, caption='Uploaded X-ray', use_column_width=True)
+def main():
+    st.title("🪁 Tuberculosis Detection from Chest X-rays")
 
-    if st.button("🔍 Predict"):
-        img_resized = img.resize(IMG_SIZE)
-        img_array = image.img_to_array(img_resized) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
+    # Select model
+    selected_model_name = st.selectbox("Choose a model for prediction:", list(MODEL_FILES.keys()))
+    model_path = os.path.join(MODEL_DIR, MODEL_FILES[selected_model_name])
 
-        prediction = model.predict(img_array)[0][0]
-        label = "Tuberculosis Detected 🚩" if prediction > 0.5 else "Normal ✅"
-        confidence = prediction if prediction > 0.5 else 1 - prediction
+    # Load model
+    if os.path.exists(model_path):
+        model = load_selected_model(model_path)
+    else:
+        st.error(f"Model file not found: {model_path}")
+        return
 
-        st.markdown(f"### 🔎 Prediction: `{label}`")
-        st.progress(float(confidence))
-        st.write(f"Confidence: `{confidence:.2f}`")
+    # Image uploader
+    uploaded_file = st.file_uploader("Upload a chest X-ray image", type=["jpg", "png", "jpeg"])
+
+    if uploaded_file is not None:
+        img = Image.open(uploaded_file).convert('RGB')
+        st.image(img, caption="Uploaded Image", use_column_width=True)
+
+        if st.button("Predict"):
+            with st.spinner("Analyzing image..."):
+                result = predict_tuberculosis(img, model)
+                if result:
+                    st.error("Prediction: Tuberculosis Detected ❌")
+                else:
+                    st.success("Prediction: Normal ✅")
+
+if __name__ == '__main__':
+    main()
