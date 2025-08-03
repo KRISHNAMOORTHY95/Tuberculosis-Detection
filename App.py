@@ -1,44 +1,42 @@
 import streamlit as st
-import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
+import numpy as np
 from PIL import Image
 import os
 
-# Title
-st.title("Tuberculosis Detection using ResNet50")
+st.set_page_config(page_title="Tuberculosis Detection", layout="centered")
+st.title("🫁 Tuberculosis Detection using ResNet50")
+st.write("Upload a Chest X-ray image and let the model predict whether TB is present.")
 
-# Load model from uploaded file
 @st.cache_resource
 def load_trained_model():
-    model_path = "ResNet50_best.h5"
-    if not os.path.exists(model_path):
-        st.error(f"Model file not found: {model_path}")
-        return None
-    return load_model(model_path)
+    model = load_model("ResNet50_best.h5")
+    return model
 
 model = load_trained_model()
 
-# Upload image
-uploaded_file = st.file_uploader("Upload Chest X-ray Image", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    img = Image.open(uploaded_file).convert("RGB")
-    st.image(img, caption='Uploaded Image', use_column_width=True)
-
-    # Preprocess image
+def preprocess_image(img):
     img = img.resize((224, 224))
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
     img_array /= 255.0
+    return img_array
 
-    if model:
-        prediction = model.predict(img_array)[0][0]
-        label = "Tuberculosis Detected" if prediction >= 0.5 else "Normal"
-        confidence = prediction if prediction >= 0.5 else 1 - prediction
+uploaded_file = st.file_uploader("Upload Chest X-ray Image", type=["jpg", "jpeg", "png"])
 
-        st.subheader("Prediction Result")
-        st.write(f"**Label:** {label}")
-        st.write(f"**Confidence:** {confidence * 100:.2f}%")
-    else:
-        st.warning("Model not loaded. Please ensure the model file is uploaded.")
+if uploaded_file is not None:
+    img = Image.open(uploaded_file).convert("RGB")
+    st.image(img, caption="Uploaded Image", use_column_width=True)
+    img_array = preprocess_image(img)
+
+    with st.spinner("Predicting..."):
+        prediction = model.predict(img_array)
+        predicted_class = "Tuberculosis Detected" if prediction[0][0] > 0.5 else "Normal"
+        confidence = prediction[0][0] if prediction[0][0] > 0.5 else 1 - prediction[0][0]
+
+    st.success(f"Prediction: {predicted_class}")
+    st.info(f"Confidence: {confidence * 100:.2f}%")
+
+st.markdown("---")
+st.markdown("Developed using ResNet50 and Streamlit 🧠")
