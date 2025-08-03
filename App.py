@@ -13,7 +13,7 @@ st.write("Upload a chest X-ray image to detect whether Tuberculosis is present."
 # Load the trained model
 @st.cache_resource
 def load_trained_model():
-    model_path = "/content/drive/MyDrive/ResNet50_best.h5"
+    model_path = "ResNet50_best.h5"  # relative path
     if not os.path.exists(model_path):
         st.error(f"Model file not found: {model_path}")
         st.stop()
