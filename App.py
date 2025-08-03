@@ -1,42 +1,44 @@
 import streamlit as st
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-import numpy as np
 from PIL import Image
+import io
 
-# Set title
+st.set_page_config(page_title="🩺 Tuberculosis Detection", layout="centered")
 st.title("🩺 Tuberculosis Detection from Chest X-ray")
 
-# Load model
 @st.cache_resource
 def load_trained_model():
-    return load_model("ResNet50_best (1).h5")  # or .keras if that's your saved file
+    try:
+        return load_model("resnet50_best.h5")  # Make sure the model file is uploaded in the same directory
+    except FileNotFoundError:
+        st.error("Model file not found. Please upload 'resnet50_best.h5' to the app directory.")
+        st.stop()
 
 model = load_trained_model()
 
-# Image upload
-uploaded_file = st.file_uploader("Upload a chest X-ray image", type=["jpg", "jpeg", "png"])
+st.markdown("Upload a chest X-ray image and get a prediction whether the person may have Tuberculosis or not.")
 
-# Preprocess image
-def preprocess(img):
-    img = img.resize((224, 224))
-    img_array = image.img_to_array(img)
-    img_array = img_array / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    return img_array
+uploaded_file = st.file_uploader("Choose a Chest X-ray Image", type=["jpg", "jpeg", "png"])
 
-# Predict
 if uploaded_file is not None:
-    img = Image.open(uploaded_file).convert("RGB")
-    st.image(img, caption='Uploaded Image', use_column_width=True)
-    
-    if st.button("Predict"):
-        input_image = preprocess(img)
-        prediction = model.predict(input_image)[0][0]
-        
-        if prediction > 0.5:
-            st.error("⚠️ Likely to have **Tuberculosis**")
-        else:
-            st.success("✅ Likely **Normal** Chest X-ray")
+    try:
+        image = Image.open(uploaded_file).convert('RGB')
+        resized_image = image.resize((224, 224))
+        img_array = np.expand_dims(np.array(resized_image) / 255.0, axis=0)
 
+        st.image(image, caption="Uploaded X-ray", use_column_width=True)
+
+        if st.button("🧠 Predict TB"):
+            prediction = model.predict(img_array)[0][0]
+            label = "Tuberculosis Detected" if prediction > 0.5 else "Normal"
+            confidence = prediction if prediction > 0.5 else 1 - prediction
+
+            st.success(f"Prediction: {label}")
+            st.info(f"Confidence: {confidence*100:.2f}%")
+    except Exception as e:
+        st.error(f"Error processing image: {e}")
+
+st.markdown("---")
+st.caption("Built with ❤ using Streamlit, TensorFlow and Transfer Learning")
