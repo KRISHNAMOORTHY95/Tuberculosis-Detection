@@ -8,9 +8,9 @@ from PIL import Image
 # Set model directory
 MODEL_DIR = "models"
 MODEL_FILES = {
-    "ResNet50": "resnet50_model.h5",
-    "VGG16": "vgg16_model.h5",
-    "EfficientNetB0": "efficientnetb0_model.h5"
+    "ResNet50": "/content/drive/MyDrive/ResNet50_best (1).h5",
+    "VGG16": "/content/drive/MyDrive/VGG16_best.h5",
+    "EfficientNetB0": "/content/drive/MyDrive/EfficientNetB0_best.h5"
 }
 
 @st.cache_resource
