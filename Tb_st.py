@@ -1,50 +1,48 @@
 import streamlit as st
 import numpy as np
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
 from PIL import Image
-import tensorflow as tf
+import os
+
+# Set page title and layout
+st.set_page_config(page_title="Tuberculosis Detection", layout="centered")
+st.title("🩺 Tuberculosis Detection from Chest X-rays")
+st.write("Upload a chest X-ray image to detect whether Tuberculosis is present.")
 
 # Load the trained model
-model = tf.keras.models.load_model(r"D:\DS projects\TB\tb_detection_model_.keras")
+@st.cache_resource
+def load_trained_model():
+    model_path = "ResNet50_best.h5"  # Updated to match your best model filename
+    if not os.path.exists(model_path):
+        st.error(f"❌ Model file not found: {model_path}")
+        st.stop()
+    model = load_model(model_path)
+    return model
 
-# Preprocessing function
-def preprocess_image(image):
-    image = image.resize((224, 224))
-    image = np.array(image) / 255.0
-    image = np.expand_dims(image, axis=0)
-    return image
+model = load_trained_model()
 
-# Set page config
-st.set_page_config(page_title="🩻 TB Detection App", page_icon="🧬", layout="centered")
+# Image preprocessing
+def preprocess_image(img):
+    img = img.resize((224, 224))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array /= 255.0
+    return img_array
 
-# Custom header
-st.markdown("<h1 style='text-align: center; color: teal;'>🩻 Tuberculosis Detection from Chest X-ray</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Upload a chest X-ray image and let our AI model predict if there's any sign of TB.</p>", unsafe_allow_html=True)
-
-# File uploader
+# Upload and predict
 uploaded_file = st.file_uploader("📂 Upload a chest X-ray image", type=["jpg", "jpeg", "png"])
-
 if uploaded_file is not None:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="🖼️ Uploaded X-ray Image", use_container_width=True)
+    img = Image.open(uploaded_file)
+    st.image(img, caption="Uploaded Image", use_column_width=True)
+    st.write("🔍 Analyzing...")
 
-    with st.spinner("🔍 Analyzing image..."):
-        processed_img = preprocess_image(image)
-        prediction = model.predict(processed_img)[0][0]
-        label = "Tuberculosis Detected but don't worry🛑" if prediction > 0.5 else "Its Normal,great ✅"
-        confidence = prediction if prediction > 0.5 else 1 - prediction
+    processed_img = preprocess_image(img)
+    prediction = model.predict(processed_img)
 
-    st.success(f"### 🔎 Prediction: **{label}**")
-    st.info(f"📊 Confidence: `{confidence * 100:.2f}%`")
+    class_names = ["Normal", "Tuberculosis"]
+    predicted_class = class_names[int(prediction[0][0] > 0.5)]
+    confidence = float(prediction[0][0]) if predicted_class == "Tuberculosis" else 1 - float(prediction[0][0])
 
-    # Add an expandable info box
-    with st.expander("ℹ️ About the Model"):
-        st.write("""
-            - This model is trained to detect signs of Tuberculosis in chest X-ray images.
-            - Input size: 224x224 pixels.
-            - Output: Binary classification (TB or Normal).
-            - Built with TensorFlow & Keras.
-        """)
-
-# Footer
-st.markdown("---")
-st.markdown("<p style='text-align: center;'>Made with ❤️ by Uvagai</p>", unsafe_allow_html=True)
+    st.success(f"🧠 **Prediction**: {predicted_class}")
+    st.info(f"📊 **Confidence**: {confidence * 100:.2f}%")
