@@ -87,13 +87,11 @@ elif choice == '🔬 TB X-Ray Prediction':
     def load_model(path):
         """Loads the pre-trained Keras model with enhanced error handling."""
         try:
-            if not os.path.exists(path):
-                uploaded_model = st.file_uploader("Upload tb_classifier_resnet50.keras", type=["keras", "h5"])
+            uploaded_model = st.file_uploader("Upload tb_classifier_resnet50.keras", type=["keras", "h5"])
             if uploaded_model:
                 with open("tb_classifier_resnet50.keras", "wb") as f:
-                     f.write(uploaded_model.getbuffer())
-            MODEL_PATH = "tb_classifier_resnet50.keras"
-            return None
+                    f.write(uploaded_model.getbuffer())
+            MODEL_PATH = "tb_classifier_resnet50.keras
             
             model = tf.keras.models.load_model(path)
             st.success("✅ Model loaded successfully!")
@@ -298,5 +296,6 @@ elif choice == '👤 About Me':
     Feel free to reach out for collaborations, any questions about this project!
     """)
     
+
 
 
