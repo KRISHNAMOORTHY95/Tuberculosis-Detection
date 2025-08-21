@@ -121,6 +121,8 @@ def show_cover_image():
 
         position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
         draw.text(position, text, fill="black", font=font)
+        
+        st.image(placeholder, caption="Placeholder Cover Image", use_container_width=True)
 
 # ---------------------------
 # Sidebar Navigation
@@ -208,4 +210,5 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
 
