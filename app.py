@@ -422,7 +422,6 @@ def main():
         
         st.markdown("""
         ### Krishnamoorthy K
-        **AI/ML Engineer & Healthcare Technology Enthusiast**
         
         📧 **Email:** mkrish818@gmail.com  
         
@@ -430,7 +429,7 @@ def main():
         - **Machine Learning:** TensorFlow, Keras, Scikit-learn
         - **Computer Vision:** OpenCV, PIL, Medical Imaging
         - **Web Development:** Streamlit, Flask, FastAPI
-        - **Languages:** Python, R, SQL
+        - **Languages:** Python, SQL
         
         ### 🎯 Specializations
         - Medical Image Analysis
@@ -449,3 +448,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
