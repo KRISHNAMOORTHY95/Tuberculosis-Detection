@@ -46,7 +46,7 @@ if choice == '🏠 Introduction':
     
     st.markdown("""
     ### 🎯 **What This System Does:**
-    This advanced AI system uses deep learning to analyze chest X-ray images and help detect tuberculosis. 
+    This system uses deep learning to analyze chest X-ray images and help detect tuberculosis. 
     The system preprocesses and augments image data, utilizes pre-trained deep learning models, 
     and provides an intuitive interface for medical image analysis.
     
@@ -60,7 +60,7 @@ if choice == '🏠 Introduction':
     ### 📋 **How to Use:**
     1. Navigate to the **TB X-Ray Prediction** page
     2. Upload a chest X-ray image (JPG, JPEG, or PNG)
-    3. Wait for the AI analysis
+    3. Wait for the analysis
     4. Review the prediction and confidence score
     
     ### ⚠️ **Important Disclaimer:**
@@ -88,15 +88,11 @@ elif choice == '🔬 TB X-Ray Prediction':
         """Loads the pre-trained Keras model with enhanced error handling."""
         try:
             if not os.path.exists(path):
-                st.error(f"❌ Model file not found at: `{path}`")
-                st.markdown("""
-                ### 🔧 **How to Fix This:**
-                1. **Download or create the model file**
-                2. **Place it in the same directory as this app**
-                3. **Ensure the filename is exactly:** `tb_classifier_resnet50.keras`
-                
-                **Need a model file?** Run the model generator script to create a demo model.
-                """)
+                uploaded_model = st.file_uploader("Upload tb_classifier_resnet50.keras", type=["keras", "h5"])
+            if uploaded_model:
+            with open("tb_classifier_resnet50.keras", "wb") as f:
+                f.write(uploaded_model.getbuffer())
+                MODEL_PATH = "tb_classifier_resnet50.keras"
                 return None
             
             model = tf.keras.models.load_model(path)
@@ -302,3 +298,4 @@ elif choice == '👤 About Me':
     Feel free to reach out for collaborations, any questions about this project!
     """)
     
+
