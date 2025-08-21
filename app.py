@@ -1,80 +1,52 @@
 import streamlit as st
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-from PIL import Image
+import numpy as np
 import cv2
 import os
+from tensorflow.keras.models import load_model
 
-choice=st.sidebar.selectbox('Navigator',['Introduction','TB X-Ray Prediction','About Me'])
-if choice=='Introduction':
-    st.title('Tuberculosis X-rays Classification')
-    st.image('images.jpeg')
-    st.subheader('The system will preprocess and augment image data, train multiple deep learning models, and evaluate their performance. The final application will provide an interface for uploading X-ray images and receiving predictions')
+# Load model once
+@st.cache_resource
+def load_tb_model():
+    model = load_model("best_model.h5")
+    return model
 
-elif choice=='TB X-Ray Prediction':
-    MODEL_PATH = 'tb_classifier_resnet50.keras'
-    IMG_SIZE = 224
-    CATEGORIES = ['Normal', 'Tuberculosis']
+model = load_tb_model()
 
-    # --- Load Model ---
-    @st.cache_resource
-    def load_model(path):
-        """Loads the pre-trained Keras model."""
-        try:
-            model = tf.keras.models.load_model(path)
-            return model
-        except Exception as e:
-            st.error(f"Error loading model: {e}")
-            return None
+# Image preprocessing function
+def preprocess_image(image):
+    img = cv2.imdecode(np.frombuffer(image.read(), np.uint8), cv2.IMREAD_COLOR)
+    img = cv2.resize(img, (224, 224))
+    img = img.astype("float32") / 255.0
+    img = np.expand_dims(img, axis=0)
+    return img
 
-    model = load_model(MODEL_PATH)
+# Streamlit UI
+st.set_page_config(page_title="Tuberculosis Detection", layout="centered")
+st.title("🫁 Tuberculosis Detection from Chest X-rays")
+st.write("Upload a chest X-ray image and the model will predict whether TB is detected.")
 
-    # --- UI Elements ---
-    st.title("🫁 TB X-Ray Image Classification")
-    st.write("Upload a chest X-ray image to classify it as Normal or containing Tuberculosis.")
+# File uploader
+uploaded_file = st.file_uploader("Upload Chest X-ray", type=["jpg", "jpeg", "png"])
 
-    uploaded_file = st.file_uploader("Choose an X-ray image...", type=["jpg", "jpeg", "png"])
+if uploaded_file is not None:
+    # Show uploaded image
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, 1)
+    st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), channels="RGB", caption="Uploaded X-ray", use_column_width=True)
 
-    if uploaded_file is not None and model is not None:
-        # --- Preprocess Image ---
-        image = Image.open(uploaded_file).convert('RGB')
-        st.image(image, caption='Uploaded Image', use_column_width=True)
+    # Preprocess and predict
+    uploaded_file.seek(0)  # Reset pointer
+    processed_img = preprocess_image(uploaded_file)
+    prediction = model.predict(processed_img)
 
-        # Resize and normalize
-        image_resized = image.resize((IMG_SIZE, IMG_SIZE))
-        img_array = tf.keras.preprocessing.image.img_to_array(image_resized)
-        img_array = np.expand_dims(img_array, axis=0) # Create a batch
-        img_array /= 255.0
+    # Assuming binary classification (TB vs Normal)
+    prob = prediction[0][0]
+    label = "Tuberculosis Detected" if prob > 0.5 else "Normal"
 
-        # --- Make Prediction ---
-        with st.spinner('Classifying...'):
-            prediction = model.predict(img_array)
-            score = tf.nn.softmax(prediction[0])
-            class_index = np.argmax(score)
-            class_name = CATEGORIES[class_index]
-            confidence = 100 * np.max(score)
+    st.subheader(f"Prediction: {label}")
+    st.progress(float(prob) if prob <= 1 else 1)
+    st.write(f"**Confidence:** {prob*100:.2f}%")
 
-        # --- Display Result ---
-        st.success(f"**Prediction:** {class_name}")
-        st.info(f"**Confidence:** {confidence:.2f}%")
-
-
-elif choice == 'About Me':
-    st.title('👩‍💻 Creator Info')
-    if os.path.exists('AboutMe.webp'):
-        st.image('AboutMe.webp', width=220)
-    else:
-        st.warning("Image `AboutMe.webp` not found.")
-    st.markdown("""
-**Developed by:** Krishnamoorthy  
-**Email:** mkrish818@gmail.com
-
-**Skills:** Computer Vision, Deep Learning, Python
-
-I’m passionate about learning fast and building practical AI applications!
-""")
-
-
-
-
+st.markdown("---")
+st.caption("Powered by Deep Learning • Built with Streamlit")
