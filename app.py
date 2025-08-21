@@ -1,9 +1,10 @@
+import io
 import os
 import time
 import numpy as np
 import streamlit as st
 import tensorflow as tf
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 # ---------------------------
 # Page Config
@@ -143,9 +144,19 @@ if choice == 'Introduction':
     st.title("Tuberculosis Detection from Chest X-rays")
     cover_image = "images.jpeg"
     if os.path.exists(cover_image):
-        st.image(cover_image, caption="Tuberculosis Detection", use_column_width=True)
+        st.image("images.jpeg", use_container_width=True)
     else:
-        st.warning("⚠️ Cover image not found. Please upload `images.jpeg` in the working directory.")
+        # Create a placeholder image with Pillow
+        placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
+        draw = ImageDraw.Draw(placeholder)
+        text = "Tuberculosis Detection"
+        font = ImageFont.load_default()
+        text_width, text_height = draw.textsize(text, font=font)
+        position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
+        draw.text(position, text, fill=(0, 0, 0), font=font)
+        
+    st.image(placeholder, caption="⚠️ Cover image not found. Showing placeholder.", use_container_width=True)
+    
     st.subheader(
         'This system preprocesses and augments image data, applies deep learning models, '
         'and provides an interface to upload chest X-ray images and receive predictions.'
@@ -231,5 +242,6 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
 
 
