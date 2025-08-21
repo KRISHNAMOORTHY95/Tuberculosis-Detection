@@ -140,11 +140,12 @@ choice = st.sidebar.selectbox('Go to', ['Introduction', 'TB X-Ray Prediction', '
 # Pages
 # ---------------------------
 if choice == 'Introduction':
-    st.title('Tuberculosis X-rays Classification')
-    if os.path.exists('images.jpeg'):
-        st.image('images.jpeg', use_column_width=True)
+    st.title("Tuberculosis Detection from Chest X-rays")
+    cover_image = "images.jpeg"
+    if os.path.exists(cover_image):
+        st.image(cover_image, caption="Tuberculosis Detection", use_column_width=True)
     else:
-        st.warning("Cover image `images.jpeg` not found in the working directory.")
+        st.warning("⚠️ Cover image not found. Please upload `images.jpeg` in the working directory.")
     st.subheader(
         'This system preprocesses and augments image data, applies deep learning models, '
         'and provides an interface to upload chest X-ray images and receive predictions.'
@@ -230,4 +231,5 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
 
