@@ -93,11 +93,11 @@ def overlay_heatmap_on_image(pil_img: Image.Image, heatmap: np.ndarray, alpha: f
     return blended.convert("RGB")
 
 # ---------------------------
-# Cover Image Helper
+# Cover Image Helper (Online Default)
 # ---------------------------
 def show_cover_image():
     cover_image = None
-    # Check for available cover images
+    # Check for available local cover images
     for img_name in ["images.jpeg", "can-x-ray-detect-tuberculosis.jpg", "tuberculosis.jpg"]:
         if os.path.exists(img_name):
             cover_image = img_name
@@ -106,23 +106,12 @@ def show_cover_image():
     if cover_image:
         st.image(cover_image, caption="Tuberculosis Detection from X-rays", use_container_width=True)
     else:
-        st.warning("⚠️ Cover image not found. Showing placeholder.")
-
-        # Create placeholder image
-        placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
-        draw = ImageDraw.Draw(placeholder)
-        font = ImageFont.load_default()
-        text = "Tuberculosis Detection from X-rays"
-
-        # Compute text size using textbbox (Pillow 10+ compatible)
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-
-        position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
-        draw.text(position, text, fill="black", font=font)
-        
-        st.image(placeholder, caption="Placeholder Cover Image", use_container_width=True)
+        # Use online default image
+        st.image(
+            "https://upload.wikimedia.org/wikipedia/commons/8/8c/Chest_X-ray_PA_1.jpg",
+            caption="Tuberculosis Detection from X-rays (Default Image)",
+            use_container_width=True
+        )
 
 # ---------------------------
 # Sidebar Navigation
@@ -210,5 +199,3 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
-
-
