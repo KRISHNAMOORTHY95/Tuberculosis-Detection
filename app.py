@@ -7,8 +7,6 @@ import streamlit as st
 import tensorflow as tf
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # ---------------------------
 # Page Config & Logging
@@ -110,29 +108,23 @@ def predict_with_confidence_analysis(model: tf.keras.Model, batch: np.ndarray) -
     
     return probs, prediction_uncertainty, confidence_level
 
-def create_probability_chart(probabilities: np.ndarray) -> go.Figure:
-    """Create an interactive probability chart."""
-    fig = go.Figure(data=[
-        go.Bar(
-            x=CATEGORIES,
-            y=probabilities[0] * 100,
-            marker_color=['#2E8B57' if i == np.argmax(probabilities[0]) else '#B22222' 
-                         for i in range(len(CATEGORIES))],
-            text=[f'{prob*100:.1f}%' for prob in probabilities[0]],
-            textposition='auto',
-        )
-    ])
+def create_probability_display(probabilities: np.ndarray):
+    """Create a simple probability display using Streamlit components."""
+    st.markdown("### 📊 Class Probabilities")
     
-    fig.update_layout(
-        title="Prediction Probabilities",
-        xaxis_title="Class",
-        yaxis_title="Probability (%)",
-        yaxis=dict(range=[0, 100]),
-        height=400,
-        template="plotly_white"
-    )
-    
-    return fig
+    for i, category in enumerate(CATEGORIES):
+        prob = probabilities[0][i] * 100
+        is_predicted = i == np.argmax(probabilities[0])
+        
+        # Create colored bar using Streamlit progress bar
+        if is_predicted:
+            st.markdown(f"**🎯 {category}:** {prob:.2f}%")
+            st.progress(prob / 100)
+        else:
+            st.markdown(f"**{category}:** {prob:.2f}%")
+            st.progress(prob / 100)
+        
+        st.write("")  # Add spacing
 
 def enhanced_gradcam_heatmap(model: tf.keras.Model, img_tensor: np.ndarray, 
                            last_conv_name: str = "conv5_block3_out"):
@@ -380,9 +372,8 @@ def main():
                 with col4:
                     st.metric("Time", f"{inference_time:.0f}ms")
                 
-                # Probability chart
-                fig = create_probability_chart(probs)
-                st.plotly_chart(fig, use_container_width=True)
+                # Probability display
+                create_probability_display(probs)
                 
                 # Grad-CAM visualization
                 if show_heatmap:
@@ -431,14 +422,15 @@ def main():
         
         st.markdown("""
         ### Krishnamoorthy K
+        **AI/ML Engineer & Healthcare Technology Enthusiast**
         
         📧 **Email:** mkrish818@gmail.com  
         
         ### 🛠️ Technical Skills
         - **Machine Learning:** TensorFlow, Keras, Scikit-learn
         - **Computer Vision:** OpenCV, PIL, Medical Imaging
-        - **Web Development:** Streamlit, FastAPI
-        - **Languages:** Python, SQL
+        - **Web Development:** Streamlit, Flask, FastAPI
+        - **Languages:** Python, R, SQL
         
         ### 🎯 Specializations
         - Medical Image Analysis
