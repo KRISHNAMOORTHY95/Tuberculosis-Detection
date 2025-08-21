@@ -87,8 +87,6 @@ def overlay_heatmap_on_image(pil_img: Image.Image, heatmap: np.ndarray, alpha: f
         return None
     heatmap_uint8 = (heatmap * 255).astype(np.uint8)
     heatmap_img = Image.fromarray(heatmap_uint8, mode="L").resize(pil_img.size)
-    heatmap_img = heatmap_img.convert("RGBA").convert("P")
-    heatmap_img.putpalette([*(list(np.linspace(0, 255, 256).astype(np.uint8)) + [0]*256 + [0]*256)])
     heatmap_img = heatmap_img.convert("RGBA")
     base = pil_img.convert("RGBA")
     blended = Image.blend(base, heatmap_img, alpha=alpha)
@@ -99,24 +97,31 @@ def overlay_heatmap_on_image(pil_img: Image.Image, heatmap: np.ndarray, alpha: f
 # ---------------------------
 def show_cover_image():
     cover_image = None
-    if os.path.exists("images.jpeg"):
-        cover_image = "images.jpeg"
-    elif os.path.exists("can-x-ray-detect-tuberculosis.jpg"):
-        cover_image = "can-x-ray-detect-tuberculosis.jpg"
-    elif os.path.exists("tuberculosis.jpg"):
-        cover_image = "tuberculosis.jpg"
+    # Check for available cover images
+    for img_name in ["images.jpeg", "can-x-ray-detect-tuberculosis.jpg", "tuberculosis.jpg"]:
+        if os.path.exists(img_name):
+            cover_image = img_name
+            break
 
     if cover_image:
         st.image(cover_image, caption="Tuberculosis Detection from X-rays", use_container_width=True)
     else:
         st.warning("⚠️ Cover image not found. Showing placeholder.")
+
+        # Create placeholder image
         placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
         draw = ImageDraw.Draw(placeholder)
         font = ImageFont.load_default()
         text = "Tuberculosis Detection from X-rays"
-        text_width, text_height = draw.textsize(text, font=font)
+
+        # Compute text size using textbbox (Pillow 10+ compatible)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
         position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
         draw.text(position, text, fill="black", font=font)
+
         st.image(placeholder, caption="Placeholder Cover Image", use_container_width=True)
 
 # ---------------------------
