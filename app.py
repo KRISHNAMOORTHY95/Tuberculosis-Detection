@@ -91,7 +91,7 @@ elif choice == '🔬 TB X-Ray Prediction':
             if uploaded_model:
                 with open("tb_classifier_resnet50.keras", "wb") as f:
                     f.write(uploaded_model.getbuffer())
-            MODEL_PATH = "tb_classifier_resnet50.keras
+            MODEL_PATH = "tb_classifier_resnet50.keras"
             
             model = tf.keras.models.load_model(path)
             st.success("✅ Model loaded successfully!")
@@ -296,6 +296,7 @@ elif choice == '👤 About Me':
     Feel free to reach out for collaborations, any questions about this project!
     """)
     
+
 
 
 
