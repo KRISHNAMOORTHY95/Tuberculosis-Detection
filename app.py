@@ -147,14 +147,19 @@ if choice == 'Introduction':
         st.image("images.jpeg", use_container_width=True)
     else:
         # Create a placeholder image with Pillow
-        placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
-        draw = ImageDraw.Draw(placeholder)
-        text = "Tuberculosis Detection"
-        font = ImageFont.load_default()
-        text_width, text_height = draw.textsize(text, font=font)
-        position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
-        draw.text(position, text, fill=(0, 0, 0), font=font)
-        
+         placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
+         draw = ImageDraw.Draw(placeholder)
+         text = "Tuberculosis Detection"
+         font = ImageFont.load_default()
+
+        # Get bounding box of text instead of using textsize()
+         bbox = draw.textbbox((0, 0), text, font=font)
+         text_width = bbox[2] - bbox[0]
+         text_height = bbox[3] - bbox[1]
+
+         position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
+         draw.text(position, text, fill=(0, 0, 0), font=font)
+
     st.image(placeholder, caption="⚠️ Cover image not found. Showing placeholder.", use_container_width=True)
     
     st.subheader(
@@ -242,6 +247,7 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
 
 
 
