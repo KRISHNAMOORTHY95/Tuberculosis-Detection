@@ -4,7 +4,7 @@ import time
 import numpy as np
 import streamlit as st
 import tensorflow as tf
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 # ---------------------------
 # Page Config
@@ -95,6 +95,31 @@ def overlay_heatmap_on_image(pil_img: Image.Image, heatmap: np.ndarray, alpha: f
     return blended.convert("RGB")
 
 # ---------------------------
+# Cover Image Helper
+# ---------------------------
+def show_cover_image():
+    cover_image = None
+    if os.path.exists("images.jpeg"):
+        cover_image = "images.jpeg"
+    elif os.path.exists("can-x-ray-detect-tuberculosis.jpg"):
+        cover_image = "can-x-ray-detect-tuberculosis.jpg"
+    elif os.path.exists("tuberculosis.jpg"):
+        cover_image = "tuberculosis.jpg"
+
+    if cover_image:
+        st.image(cover_image, caption="Tuberculosis Detection from X-rays", use_container_width=True)
+    else:
+        st.warning("⚠️ Cover image not found. Showing placeholder.")
+        placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
+        draw = ImageDraw.Draw(placeholder)
+        font = ImageFont.load_default()
+        text = "Tuberculosis Detection from X-rays"
+        text_width, text_height = draw.textsize(text, font=font)
+        position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
+        draw.text(position, text, fill="black", font=font)
+        st.image(placeholder, caption="Placeholder Cover Image", use_container_width=True)
+
+# ---------------------------
 # Sidebar Navigation
 # ---------------------------
 st.sidebar.title("Navigator")
@@ -105,19 +130,8 @@ choice = st.sidebar.selectbox('Go to', ['Introduction', 'TB X-Ray Prediction', '
 # ---------------------------
 if choice == 'Introduction':
     st.title("Tuberculosis Detection from Chest X-rays")
-
-    COVER_IMAGE = "tuberculosis.jpg"   # or "can-x-ray-detect-tuberculosis.jpg"
-    def show_cover_image():
-        if os.path.exists(COVER_IMAGE):
-            image = Image.open(COVER_IMAGE)
-            st.image(image, use_column_width=True, caption="Tuberculosis Detection from X-rays")
-        else:
-            st.warning("⚠️ Cover image not found. Showing placeholder.")
-            st.image("https://via.placeholder.com/800x300.png?text=Tuberculosis+Detection", use_column_width=True)
-
-    # ✅ FIXED indentation here
     show_cover_image()
-    
+
     st.subheader(
         'This system preprocesses and augments image data, applies deep learning models, '
         'and provides an interface to upload chest X-ray images and receive predictions.'
@@ -153,7 +167,7 @@ elif choice == 'TB X-Ray Prediction':
             st.error(f"Could not read image: {e}")
             st.stop()
 
-        st.image(image, caption='Uploaded Image', use_column_width=True)
+        st.image(image, caption='Uploaded Image', use_container_width=True)
         batch = preprocess_image_pil(image, target_size=IMG_SIZE)
         start = time.time()
         probs = predict_with_softmax(model, batch)
@@ -175,7 +189,7 @@ elif choice == 'TB X-Ray Prediction':
                     st.warning("Grad-CAM unavailable (layer not found or gradients not traceable).")
                 else:
                     overlay = overlay_heatmap_on_image(image.resize((IMG_SIZE, IMG_SIZE)), heatmap, alpha=0.35)
-                    st.image(overlay, caption="Grad-CAM Overlay", use_column_width=True)
+                    st.image(overlay, caption="Grad-CAM Overlay", use_container_width=True)
 
 elif choice == 'About Me':
     st.title('👩‍💻 Creator Info')
