@@ -1,16 +1,11 @@
-import io
-import os
-import time
-import logging
-import numpy as np
 import streamlit as st
 import tensorflow as tf
-from PIL import Image, ImageDraw, ImageFont
-from datetime import datetime
+from PIL import Image
+import numpy as np
+import time
+import os
 
-# ---------------------------
-# Page Config & Logging
-# ---------------------------
+# Page configuration
 st.set_page_config(
     page_title="TB X-ray Classifier",
     page_icon="🫁",
@@ -18,478 +13,292 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Sidebar navigation with better styling
+st.sidebar.title("🧭 Navigation")
+choice = st.sidebar.selectbox(
+    'Choose a page:', 
+    ['🏠 Introduction', '🔬 TB X-Ray Prediction', '👤 About Me']
+)
 
-# GPU memory configuration
-gpus = tf.config.list_physical_devices('GPU')
-for gpu in gpus:
-    try:
-        tf.config.experimental.set_memory_growth(gpu, True)
-    except Exception as e:
-        logger.warning(f"GPU memory configuration failed: {e}")
+# Add helpful info in sidebar
+st.sidebar.markdown("---")
+st.sidebar.info(
+    "💡 **Tip:** For best results, use clear chest X-ray images "
+    "with good contrast and minimal artifacts."
+)
 
-# ---------------------------
-# App Constants
-# ---------------------------
-# Try multiple possible model paths
-POSSIBLE_MODEL_PATHS = [
-    "tb_classifier_resnet50.keras",  # Same directory as app
-    "model/tb_classifier_resnet50.keras",  # In model subdirectory
-    "models/tb_classifier_resnet50.keras",  # In models subdirectory
-    "/content/tb_classifier_resnet50.keras",  # Original Colab path
-    "./tb_classifier_resnet50.keras",  # Explicit current directory
-]
-
-IMG_SIZE = 224
-CATEGORIES = ['Normal', 'Tuberculosis']
-CONFIDENCE_THRESHOLD = 70.0  # Threshold for high confidence predictions
-
-# ---------------------------
-# Enhanced Helper Functions
-# ---------------------------
-def find_model_path() -> str:
-    """Find the model file from possible locations."""
-    for path in POSSIBLE_MODEL_PATHS:
-        if os.path.exists(path):
-            logger.info(f"Found model at: {path}")
-            return path
-    return None
-
-@st.cache_resource(show_spinner=True)
-def load_model(path: str):
-    """Load and validate Keras model."""
-    try:
-        model = tf.keras.models.load_model(path)
-        logger.info(f"Model loaded successfully from {path}")
-        return model
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        raise
-
-def validate_image(image: Image.Image) -> bool:
-    """Validate uploaded image for medical X-ray characteristics."""
-    try:
-        # Check image size (minimum resolution)
-        width, height = image.size
-        if width < 100 or height < 100:
-            st.warning("⚠️ Image resolution seems too low for accurate diagnosis")
-            return False
-        
-        # Check if image is grayscale or has low color variation (typical for X-rays)
-        img_array = np.array(image.convert('RGB'))
-        color_variation = np.std(img_array)
-        
-        if color_variation < 10:
-            st.info("ℹ️ Detected grayscale image - typical for X-rays")
-        
-        return True
-    except Exception as e:
-        st.error(f"Image validation failed: {e}")
-        return False
-
-def preprocess_image_pil(pil_img: Image.Image, target_size: int = 224) -> np.ndarray:
-    """Enhanced preprocessing with validation."""
-    # Convert to RGB and resize
-    img = pil_img.convert("RGB").resize((target_size, target_size), Image.LANCZOS)
+if choice == '🏠 Introduction':
+    st.title('🫁 Tuberculosis X-rays Classification')
     
-    # Convert to array and normalize
-    arr = tf.keras.preprocessing.image.img_to_array(img)
-    arr = arr.astype("float32") / 255.0
-    
-    # Add batch dimension
-    arr = np.expand_dims(arr, axis=0)
-    
-    return arr
-
-def predict_with_confidence_analysis(model: tf.keras.Model, batch: np.ndarray) -> tuple:
-    """Enhanced prediction with confidence analysis."""
-    logits = model.predict(batch, verbose=0)
-    
-    if logits.ndim == 1:
-        logits = np.expand_dims(logits, 0)
-    
-    # Calculate probabilities
-    row_sums = np.sum(logits, axis=1, keepdims=True)
-    if np.allclose(row_sums, 1.0, atol=1e-3) and np.all(logits >= 0):
-        probs = logits
+    # Check if image exists, show placeholder if not
+    if os.path.exists('images.jpeg'):
+        st.image('images.jpeg', use_container_width=True)
     else:
-        probs = tf.nn.softmax(logits, axis=1).numpy()
-    
-    # Confidence analysis
-    max_prob = np.max(probs[0])
-    prediction_uncertainty = 1 - max_prob
-    confidence_level = "High" if max_prob * 100 > CONFIDENCE_THRESHOLD else "Low"
-    
-    return probs, prediction_uncertainty, confidence_level
-
-def create_probability_display(probabilities: np.ndarray):
-    """Create a simple probability display using Streamlit components."""
-    st.markdown("### 📊 Class Probabilities")
-    
-    for i, category in enumerate(CATEGORIES):
-        prob = probabilities[0][i] * 100
-        is_predicted = i == np.argmax(probabilities[0])
-        
-        # Create colored bar using Streamlit progress bar
-        if is_predicted:
-            st.markdown(f"**🎯 {category}:** {prob:.2f}%")
-            st.progress(prob / 100)
-        else:
-            st.markdown(f"**{category}:** {prob:.2f}%")
-            st.progress(prob / 100)
-        
-        st.write("")  # Add spacing
-
-def enhanced_gradcam_heatmap(model: tf.keras.Model, img_tensor: np.ndarray, 
-                           last_conv_name: str = "conv5_block3_out"):
-    """Enhanced Grad-CAM with better error handling."""
-    try:
-        # Get the last convolutional layer
-        last_conv_layer = model.get_layer(last_conv_name)
-    except ValueError:
-        # Try alternative layer names for different architectures
-        alternative_names = ["conv5_block3_out", "conv2d", "block5_conv3"]
-        last_conv_layer = None
-        
-        for alt_name in alternative_names:
-            try:
-                last_conv_layer = model.get_layer(alt_name)
-                logger.info(f"Using alternative layer: {alt_name}")
-                break
-            except ValueError:
-                continue
-        
-        if last_conv_layer is None:
-            logger.warning("No suitable convolutional layer found for Grad-CAM")
-            return None
-    
-    # Create gradient model
-    grad_model = tf.keras.models.Model(
-        [model.inputs], 
-        [last_conv_layer.output, model.output]
-    )
-    
-    # Compute gradients
-    with tf.GradientTape() as tape:
-        conv_outputs, predictions = grad_model(img_tensor, training=False)
-        pred_index = tf.argmax(predictions[0])
-        class_channel = predictions[:, pred_index]
-    
-    grads = tape.gradient(class_channel, conv_outputs)
-    if grads is None:
-        logger.warning("Gradients could not be computed")
-        return None
-    
-    # Pool gradients and compute heatmap
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-    conv_outputs = conv_outputs[0]
-    heatmap = tf.reduce_sum(tf.multiply(pooled_grads, conv_outputs), axis=-1)
-    
-    # Normalize heatmap
-    heatmap = tf.maximum(heatmap, 0) / (tf.reduce_max(heatmap) + 1e-8)
-    heatmap = heatmap.numpy()
-    
-    # Resize to input size
-    heatmap = tf.image.resize(
-        heatmap[..., np.newaxis], 
-        (IMG_SIZE, IMG_SIZE)
-    ).numpy().squeeze()
-    
-    return heatmap
-
-def create_diagnostic_report(prediction: str, confidence: float, 
-                           uncertainty: float, confidence_level: str) -> str:
-    """Generate a diagnostic report."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    report = f"""
-    📋 **DIAGNOSTIC REPORT**
-    
-    **Timestamp:** {timestamp}
-    **Prediction:** {prediction}
-    **Confidence:** {confidence:.2f}%
-    **Uncertainty:** {uncertainty:.3f}
-    **Confidence Level:** {confidence_level}
-    
-    **Clinical Notes:**
-    """
-    
-    if confidence > CONFIDENCE_THRESHOLD:
-        if prediction == "Tuberculosis":
-            report += "- High confidence TB detection. Recommend immediate clinical consultation."
-        else:
-            report += "- High confidence normal classification. Regular follow-up recommended."
-    else:
-        report += "- Low confidence prediction. Additional imaging or clinical assessment recommended."
-    
-    report += "\n\n⚠️ **Disclaimer:** This is an AI-assisted tool for educational purposes. Always consult healthcare professionals for medical diagnosis."
-    
-    return report
-
-# ---------------------------
-# UI Components
-# ---------------------------
-def show_cover_image():
-    """Display cover image with fallback options."""
-    cover_image = None
-    
-    # Check for local images
-    local_images = ["images.jpeg", "can-x-ray-detect-tuberculosis.jpg", "tuberculosis.jpg"]
-    for img_name in local_images:
-        if os.path.exists(img_name):
-            cover_image = img_name
-            break
-    
-    if cover_image:
-        st.image(cover_image, caption="Tuberculosis Detection from X-rays", use_container_width=True)
-    else:
-        # Use online fallback
         st.image(
-            "https://upload.wikimedia.org/wikipedia/commons/8/8c/Chest_X-ray_PA_1.jpg",
-            caption="Tuberculosis Detection from X-rays",
+            'https://upload.wikimedia.org/wikipedia/commons/8/8c/Chest_X-ray_PA_1.jpg',
+            caption='Tuberculosis Detection from X-rays (Demo Image)',
             use_container_width=True
         )
-
-def show_model_info(model):
-    """Display model architecture information."""
-    with st.expander("🔍 Model Information"):
-        st.write(f"**Model Type:** {type(model).__name__}")
-        st.write(f"**Input Shape:** {model.input_shape}")
-        st.write(f"**Output Shape:** {model.output_shape}")
-        st.write(f"**Total Parameters:** {model.count_params():,}")
-        st.write(f"**Trainable Parameters:** {sum([tf.keras.backend.count_params(w) for w in model.trainable_weights]):,}")
-
-# ---------------------------
-# Main Application
-# ---------------------------
-def main():
-    # Sidebar navigation
-    st.sidebar.title("🧭 Navigation")
-    choice = st.sidebar.selectbox('Go to', ['🏠 Introduction', '🔬 TB Detection', '👤 About'])
     
-    # Add sidebar info
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        "💡 **Tip:** For best results, use clear chest X-ray images "
-        "with good contrast and minimal artifacts."
+    st.subheader(
+        'AI-Powered Tuberculosis Detection System'
     )
+    
+    st.markdown("""
+    ### 🎯 **What This System Does:**
+    This advanced AI system uses deep learning to analyze chest X-ray images and help detect tuberculosis. 
+    The system preprocesses and augments image data, utilizes pre-trained deep learning models, 
+    and provides an intuitive interface for medical image analysis.
+    
+    ### ✨ **Key Features:**
+    - **🧠 Deep Learning:** Powered by ResNet50 architecture
+    - **⚡ Fast Processing:** Real-time image analysis
+    - **📊 Confidence Scores:** Detailed probability analysis
+    - **🎯 High Accuracy:** Trained on medical imaging data
+    - **🔒 Secure:** No data stored or transmitted
+    
+    ### 📋 **How to Use:**
+    1. Navigate to the **TB X-Ray Prediction** page
+    2. Upload a chest X-ray image (JPG, JPEG, or PNG)
+    3. Wait for the AI analysis
+    4. Review the prediction and confidence score
+    
+    ### ⚠️ **Important Disclaimer:**
+    This tool is for educational and research purposes only. 
+    Always consult healthcare professionals for medical diagnosis.
+    """)
+    
+    # Add some metrics for visual appeal
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Model Type", "ResNet50")
+    with col2:
+        st.metric("Classes", "2")
+    with col3:
+        st.metric("Input Size", "224x224")
 
-    # Main content based on navigation choice
-    if choice == '🏠 Introduction':
-        st.title("🫁 Tuberculosis Detection from Chest X-rays")
-        show_cover_image()
-        
-        st.markdown("""
-        ### 🎯 Purpose
-        This AI-powered system helps in the preliminary screening of tuberculosis 
-        from chest X-ray images using deep learning technology.
-        
-        ### ✨ Features
-        - **Transfer Learning:** Built on ResNet50 architecture
-        - **Interactive Interface:** Easy-to-use web interface
-        - **Confidence Analysis:** Detailed probability scores
-        - **Grad-CAM Visualization:** See what the model focuses on
-        - **Diagnostic Reports:** Generate structured reports
-        
-        ### 🚀 How to Use
-        1. Navigate to the **TB Detection** page
-        2. Upload a chest X-ray image (JPG, JPEG, or PNG)
-        3. View the prediction results and confidence scores
-        4. Optionally enable Grad-CAM for visual explanation
-        """)
-        
-        # Add statistics or metrics if available
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Model Accuracy", "94.2%", "2.1%")
-        with col2:
-            st.metric("Sensitivity", "92.8%", "1.5%")
-        with col3:
-            st.metric("Specificity", "95.6%", "0.8%")
+elif choice == '🔬 TB X-Ray Prediction':
+    MODEL_PATH = '/content/tb_classifier_resnet50.keras'
+    IMG_SIZE = 224
+    CATEGORIES = ['Normal', 'Tuberculosis']
+    
+    # Enhanced model loading with better error handling
+    @st.cache_resource(show_spinner=True)
+    def load_model(path):
+        """Loads the pre-trained Keras model with enhanced error handling."""
+        try:
+            if not os.path.exists(path):
+                st.error(f"❌ Model file not found at: `{path}`")
+                st.markdown("""
+                ### 🔧 **How to Fix This:**
+                1. **Download or create the model file**
+                2. **Place it in the same directory as this app**
+                3. **Ensure the filename is exactly:** `tb_classifier_resnet50.keras`
+                
+                **Need a model file?** Run the model generator script to create a demo model.
+                """)
+                return None
+            
+            model = tf.keras.models.load_model(path)
+            st.success("✅ Model loaded successfully!")
+            return model
+        except Exception as e:
+            st.error(f"❌ Error loading model: {e}")
+            return None
 
-    elif choice == '🔬 TB Detection':
-        st.title("🔬 TB X-Ray Image Classification")
-        st.markdown("Upload a chest X-ray image for tuberculosis screening analysis.")
+    def validate_image(image):
+        """Basic image validation."""
+        width, height = image.size
+        if width < 50 or height < 50:
+            st.warning("⚠️ Image seems very small. Results may not be accurate.")
+            return False
+        return True
+
+    def preprocess_image(image, target_size):
+        """Enhanced image preprocessing."""
+        # Resize with high-quality resampling
+        image_resized = image.resize((target_size, target_size), Image.LANCZOS)
         
-        # Find and check if model exists
-        model_path = find_model_path()
-        if not model_path:
-            st.error("❌ **Model file not found!**")
-            st.markdown("""
-            Please ensure you have the model file in one of these locations:
-            - `tb_classifier_resnet50.keras` (same directory as app.py)
-            - `model/tb_classifier_resnet50.keras`
-            - `models/tb_classifier_resnet50.keras`
-            
-            **How to get the model:**
-            1. Train your own model using TensorFlow/Keras
-            2. Download a pre-trained model
-            3. Place the `.keras` file in the same directory as this app
-            """)
-            
-            # Show file uploader for model
-            st.markdown("### 📤 Upload Model File")
-            uploaded_model = st.file_uploader(
-                "Upload your trained model file", 
-                type=["keras", "h5"],
-                help="Upload a trained Keras model file (.keras or .h5 format)"
-            )
-            
-            if uploaded_model is not None:
-                # Save uploaded model
-                model_save_path = "tb_classifier_resnet50.keras"
-                with open(model_save_path, "wb") as f:
-                    f.write(uploaded_model.read())
-                st.success(f"✅ Model uploaded successfully! Saved as `{model_save_path}`")
-                st.experimental_rerun()
-            
-            st.stop()
+        # Convert to array and normalize
+        img_array = tf.keras.preprocessing.image.img_to_array(image_resized)
+        img_array = np.expand_dims(img_array, axis=0)  # Create batch dimension
+        img_array = img_array.astype('float32') / 255.0  # Normalize to [0,1]
         
-        # Load model
-        with st.spinner("🔄 Loading AI model..."):
-            try:
-                model = load_model(model_path)
-                st.success("✅ Model loaded successfully!")
-            except Exception as e:
-                st.error(f"❌ Error loading model: {e}")
-                st.stop()
+        return img_array
+
+    # UI Elements
+    st.title("🔬 TB X-Ray Image Classification")
+    st.markdown("""
+    Upload a chest X-ray image to get an AI-powered analysis for tuberculosis detection.
+    The system will analyze the image and provide a prediction with confidence scores.
+    """)
+    
+    # Load model
+    model = load_model(MODEL_PATH)
+    
+    if model is not None:
+        # Display model info
+        with st.expander("🔍 Model Information"):
+            st.write(f"**Model Architecture:** {type(model).__name__}")
+            st.write(f"**Input Shape:** {model.input_shape}")
+            st.write(f"**Output Shape:** {model.output_shape}")
+            st.write(f"**Total Parameters:** {model.count_params():,}")
         
-        # Show model info
-        show_model_info(model)
-        
-        # File uploader
+        # File uploader with better styling
         uploaded_file = st.file_uploader(
             "📁 Choose a chest X-ray image...", 
             type=["jpg", "jpeg", "png"],
-            help="Supported formats: JPG, JPEG, PNG. Max file size: 200MB"
+            help="Supported formats: JPG, JPEG, PNG. Maximum file size: 200MB"
         )
-        
-        # Analysis options
-        col1, col2 = st.columns(2)
-        with col1:
-            show_heatmap = st.checkbox("🔥 Show Grad-CAM heatmap", value=False)
-        with col2:
-            generate_report = st.checkbox("📋 Generate diagnostic report", value=True)
-        
+
         if uploaded_file is not None:
             try:
-                # Load and validate image
+                # Load and display image
                 image = Image.open(uploaded_file).convert('RGB')
                 
+                # Validate image
                 if not validate_image(image):
                     st.stop()
                 
-                # Display image
                 st.image(image, caption='📸 Uploaded X-ray Image', use_container_width=True)
                 
-                # Preprocess and predict
-                with st.spinner("🧠 Analyzing X-ray..."):
-                    batch = preprocess_image_pil(image, target_size=IMG_SIZE)
-                    
+                # Show image details
+                with st.expander("📊 Image Details"):
+                    st.write(f"**Filename:** {uploaded_file.name}")
+                    st.write(f"**Size:** {image.size}")
+                    st.write(f"**Mode:** {image.mode}")
+                    st.write(f"**File Size:** {uploaded_file.size:,} bytes")
+
+                # Preprocess image
+                with st.spinner('🔄 Preprocessing image...'):
+                    img_array = preprocess_image(image, IMG_SIZE)
+
+                # Make prediction with timing
+                with st.spinner('🧠 AI is analyzing the X-ray...'):
                     start_time = time.time()
-                    probs, uncertainty, confidence_level = predict_with_confidence_analysis(model, batch)
-                    inference_time = (time.time() - start_time) * 1000.0
-                
-                # Get results
-                class_index = int(np.argmax(probs[0]))
-                class_name = CATEGORIES[class_index]
-                confidence = float(np.max(probs[0])) * 100.0
-                
-                # Display results
+                    prediction = model.predict(img_array, verbose=0)
+                    inference_time = (time.time() - start_time) * 1000  # Convert to ms
+                    
+                    # Calculate probabilities and confidence
+                    score = tf.nn.softmax(prediction[0])
+                    class_index = np.argmax(score)
+                    class_name = CATEGORIES[class_index]
+                    confidence = 100 * np.max(score)
+                    uncertainty = 1 - np.max(score)
+
+                # Display results with better formatting
                 st.markdown("## 📊 Analysis Results")
                 
-                # Main prediction
+                # Main prediction with color coding
                 if class_name == "Tuberculosis":
                     st.error(f"🚨 **Prediction:** {class_name}")
                 else:
                     st.success(f"✅ **Prediction:** {class_name}")
-                
-                # Metrics
+
+                # Metrics in columns
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Confidence", f"{confidence:.1f}%")
+                    st.metric("Confidence", f"{confidence:.2f}%")
                 with col2:
                     st.metric("Uncertainty", f"{uncertainty:.3f}")
                 with col3:
-                    st.metric("Level", confidence_level)
+                    st.metric("Inference Time", f"{inference_time:.0f}ms")
                 with col4:
-                    st.metric("Time", f"{inference_time:.0f}ms")
+                    confidence_level = "High" if confidence > 80 else "Medium" if confidence > 60 else "Low"
+                    st.metric("Confidence Level", confidence_level)
+
+                # Detailed probability breakdown
+                st.markdown("### 🎯 Detailed Probabilities")
                 
-                # Probability display
-                create_probability_display(probs)
-                
-                # Grad-CAM visualization
-                if show_heatmap:
-                    with st.spinner("🔥 Generating Grad-CAM heatmap..."):
-                        heatmap = enhanced_gradcam_heatmap(model, batch)
-                        
-                        if heatmap is not None:
-                            # Create overlay
-                            resized_image = image.resize((IMG_SIZE, IMG_SIZE))
-                            
-                            # Display side by side
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.image(resized_image, caption="Original Image")
-                            with col2:
-                                st.image(heatmap, caption="Grad-CAM Heatmap", cmap='jet')
-                        else:
-                            st.warning("⚠️ Grad-CAM visualization unavailable for this model architecture.")
-                
-                # Generate diagnostic report
-                if generate_report:
-                    report = create_diagnostic_report(class_name, confidence, uncertainty, confidence_level)
-                    st.markdown("## 📋 Diagnostic Report")
-                    st.markdown(report)
+                for i, category in enumerate(CATEGORIES):
+                    prob = float(score[i]) * 100
+                    is_predicted = i == class_index
                     
-                    # Download report button
-                    st.download_button(
-                        label="📥 Download Report",
-                        data=report,
-                        file_name=f"tb_screening_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        mime="text/plain"
-                    )
+                    # Create progress bar with custom styling
+                    if is_predicted:
+                        st.markdown(f"**🎯 {category}:** {prob:.2f}%")
+                    else:
+                        st.markdown(f"**{category}:** {prob:.2f}%")
+                    
+                    st.progress(prob / 100)
+                    st.write("")  # Add spacing
+
+                # Clinical interpretation
+                st.markdown("### 🏥 Clinical Interpretation")
                 
+                if confidence > 80:
+                    if class_name == "Tuberculosis":
+                        st.warning(
+                            "⚠️ **High confidence TB detection.** "
+                            "This result suggests possible tuberculosis. "
+                            "Immediate medical consultation is strongly recommended."
+                        )
+                    else:
+                        st.info(
+                            "ℹ️ **High confidence normal classification.** "
+                            "The X-ray appears normal with high confidence. "
+                            "Regular health check-ups are still recommended."
+                        )
+                else:
+                    st.info(
+                        "ℹ️ **Moderate/Low confidence prediction.** "
+                        "The AI is less certain about this result. "
+                        "Additional medical imaging or consultation is recommended."
+                    )
+
+                # Disclaimer
+                st.markdown("---")
+                st.warning(
+                    "⚠️ **Medical Disclaimer:** This AI tool is for educational and research purposes only. "
+                    "It should not be used as a substitute for professional medical diagnosis. "
+                    "Always consult qualified healthcare professionals for medical advice."
+                )
+
             except Exception as e:
-                st.error(f"❌ Error processing image: {e}")
-                logger.error(f"Image processing error: {e}")
+                st.error(f"❌ Error processing image: {str(e)}")
+                st.info("Please try uploading a different image or check the file format.")
 
-    elif choice == '👤 About':
-        st.title('👨‍💻 About the Developer')
+elif choice == '👤 About Me':
+    st.title('👩‍💻 About the Creator')
+    
+    # Profile image with fallback
+    if os.path.exists('AboutMe.webp'):
+        st.image('AboutMe.webp', width=200)
+    else:
+        st.info("💼 Profile image not available")
+    
+    st.markdown("""
+    ### Krishnamoorthy
         
-        # Profile image
-        if os.path.exists('AboutMe.webp'):
-            st.image('AboutMe.webp', width=200)
-        else:
-            st.info("💼 Profile image not found")
-        
-        st.markdown("""
-        ### Krishnamoorthy K
-           
-        📧 **Email:** mkrish818@gmail.com  
-        
-        ### 🛠️ Technical Skills
-        - **Machine Learning:** TensorFlow, Keras, Scikit-learn
-        - **Computer Vision:** OpenCV, PIL, Medical Imaging
-        - **Web Development:** Streamlit
-        - **Languages:** Python, SQL
-        
-        ### 🎯 Specializations
-        - Medical Image Analysis
-        - Deep Learning for Healthcare
-        - AI Model Deployment
-        - Data Science & Analytics
-        
-        ### 🌟 Mission
-        Developing AI solutions that make healthcare more accessible and accurate, 
-        particularly in resource-constrained environments where early detection 
-        can save lives.
-        
-        ---
-        *Built with ❤️ for better healthcare outcomes*
-        """)
-
-if __name__ == "__main__":
-    main()
+    📧 **Contact:** mkrish818@gmail.com
+    
+    ### 🛠️ **Technical Expertise**
+    - **Computer Vision:** Medical image analysis, Deep learning architectures
+    - **Deep Learning:** TensorFlow, Keras, PyTorch
+    - **Python Development:** Streamlit, Flask, Data Science libraries
+    - **Healthcare AI:** Medical imaging, Diagnostic systems
+    
+    ### 🌟 **Professional Qualities**
+    - **Quick Learner:** Rapidly adapts to new technologies and methodologies
+    - **Problem Solver:** Passionate about solving real-world challenges with AI
+    - **Innovation-Driven:** Constantly exploring cutting-edge solutions
+    - **Detail-Oriented:** Ensures high-quality, reliable implementations
+    
+    ### 🎯 **Mission**
+    Developing AI-powered solutions that make healthcare more accessible and accurate. 
+    I believe technology can bridge gaps in medical diagnosis, especially in regions 
+    where specialized healthcare resources are limited.
+    
+    ### 🚀 **Current Focus**
+    - Medical image analysis for early disease detection
+    - Democratizing AI tools for healthcare applications
+    - Building user-friendly interfaces for complex AI systems
+    
+    ---
+    
+    *"Passionate about leveraging AI to create meaningful impact in healthcare and beyond!"*
+    
+    ### 🤝 **Let's Connect**
+    Feel free to reach out for collaborations, any questions about this project!
+    """)
+    
