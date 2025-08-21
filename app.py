@@ -26,7 +26,7 @@ for gpu in gpus:
 # ---------------------------
 # App Constants
 # ---------------------------
-MODEL_PATH = "tb_classifier_resnet50.keras"
+MODEL_PATH = "/content/tb_classifier_resnet50.keras"
 IMG_SIZE = 224
 CATEGORIES = ['Normal', 'Tuberculosis']  # Must match training label order
 
@@ -199,3 +199,4 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
