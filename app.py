@@ -33,7 +33,15 @@ for gpu in gpus:
 # ---------------------------
 # App Constants
 # ---------------------------
-MODEL_PATH = "/content/tb_classifier_resnet50.keras"
+# Try multiple possible model paths
+POSSIBLE_MODEL_PATHS = [
+    "tb_classifier_resnet50.keras",  # Same directory as app
+    "model/tb_classifier_resnet50.keras",  # In model subdirectory
+    "models/tb_classifier_resnet50.keras",  # In models subdirectory
+    "/content/tb_classifier_resnet50.keras",  # Original Colab path
+    "./tb_classifier_resnet50.keras",  # Explicit current directory
+]
+
 IMG_SIZE = 224
 CATEGORIES = ['Normal', 'Tuberculosis']
 CONFIDENCE_THRESHOLD = 70.0  # Threshold for high confidence predictions
@@ -41,6 +49,14 @@ CONFIDENCE_THRESHOLD = 70.0  # Threshold for high confidence predictions
 # ---------------------------
 # Enhanced Helper Functions
 # ---------------------------
+def find_model_path() -> str:
+    """Find the model file from possible locations."""
+    for path in POSSIBLE_MODEL_PATHS:
+        if os.path.exists(path):
+            logger.info(f"Found model at: {path}")
+            return path
+    return None
+
 @st.cache_resource(show_spinner=True)
 def load_model(path: str):
     """Load and validate Keras model."""
@@ -297,15 +313,44 @@ def main():
         st.title("🔬 TB X-Ray Image Classification")
         st.markdown("Upload a chest X-ray image for tuberculosis screening analysis.")
         
-        # Check if model exists
-        if not os.path.exists(MODEL_PATH):
-            st.error(f"❌ Model file `{MODEL_PATH}` not found. Please ensure the model is properly installed.")
+        # Find and check if model exists
+        model_path = find_model_path()
+        if not model_path:
+            st.error("❌ **Model file not found!**")
+            st.markdown("""
+            Please ensure you have the model file in one of these locations:
+            - `tb_classifier_resnet50.keras` (same directory as app.py)
+            - `model/tb_classifier_resnet50.keras`
+            - `models/tb_classifier_resnet50.keras`
+            
+            **How to get the model:**
+            1. Train your own model using TensorFlow/Keras
+            2. Download a pre-trained model
+            3. Place the `.keras` file in the same directory as this app
+            """)
+            
+            # Show file uploader for model
+            st.markdown("### 📤 Upload Model File")
+            uploaded_model = st.file_uploader(
+                "Upload your trained model file", 
+                type=["keras", "h5"],
+                help="Upload a trained Keras model file (.keras or .h5 format)"
+            )
+            
+            if uploaded_model is not None:
+                # Save uploaded model
+                model_save_path = "tb_classifier_resnet50.keras"
+                with open(model_save_path, "wb") as f:
+                    f.write(uploaded_model.read())
+                st.success(f"✅ Model uploaded successfully! Saved as `{model_save_path}`")
+                st.experimental_rerun()
+            
             st.stop()
         
         # Load model
         with st.spinner("🔄 Loading AI model..."):
             try:
-                model = load_model(MODEL_PATH)
+                model = load_model(model_path)
                 st.success("✅ Model loaded successfully!")
             except Exception as e:
                 st.error(f"❌ Error loading model: {e}")
@@ -422,13 +467,13 @@ def main():
         
         st.markdown("""
         ### Krishnamoorthy K
-        
+           
         📧 **Email:** mkrish818@gmail.com  
         
         ### 🛠️ Technical Skills
         - **Machine Learning:** TensorFlow, Keras, Scikit-learn
         - **Computer Vision:** OpenCV, PIL, Medical Imaging
-        - **Web Development:** Streamlit, Flask, FastAPI
+        - **Web Development:** Streamlit
         - **Languages:** Python, SQL
         
         ### 🎯 Specializations
@@ -448,4 +493,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
