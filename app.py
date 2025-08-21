@@ -1,4 +1,3 @@
-%%writefile model.py
 import os
 import time
 import numpy as np
@@ -231,3 +230,4 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
