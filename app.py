@@ -4,7 +4,7 @@ import time
 import numpy as np
 import streamlit as st
 import tensorflow as tf
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 # ---------------------------
 # Page Config
@@ -142,25 +142,17 @@ choice = st.sidebar.selectbox('Go to', ['Introduction', 'TB X-Ray Prediction', '
 # ---------------------------
 if choice == 'Introduction':
     st.title("Tuberculosis Detection from Chest X-rays")
-    cover_image = "images.jpeg"
-    if os.path.exists(cover_image):
-        st.image("images.jpeg", use_container_width=True)
-    else:
-        # Create a placeholder image with Pillow
-         placeholder = Image.new("RGB", (800, 400), color=(200, 200, 200))
-         draw = ImageDraw.Draw(placeholder)
-         text = "Tuberculosis Detection"
-         font = ImageFont.load_default()
+    COVER_IMAGE = "tuberculosis.jpg"   # or "can-x-ray-detect-tuberculosis.jpg"
+    def show_cover_image():
+        if os.path.exists(COVER_IMAGE):
+            image = Image.open(COVER_IMAGE)
+            st.image(image, use_column_width=True, caption="Tuberculosis Detection from X-rays")
+        else:
+            st.warning("⚠️ Cover image not found. Showing placeholder.")
+            st.image("https://via.placeholder.com/800x300.png?text=Tuberculosis+Detection", use_column_width=True)
 
-        # Get bounding box of text instead of using textsize()
-         bbox = draw.textbbox((0, 0), text, font=font)
-         text_width = bbox[2] - bbox[0]
-         text_height = bbox[3] - bbox[1]
-
-         position = ((placeholder.width - text_width) // 2, (placeholder.height - text_height) // 2)
-         draw.text(position, text, fill=(0, 0, 0), font=font)
-
-    st.image(placeholder, caption="⚠️ Cover image not found. Showing placeholder.", use_container_width=True)
+   # Call this at the top of your Streamlit app
+   show_cover_image()
     
     st.subheader(
         'This system preprocesses and augments image data, applies deep learning models, '
@@ -247,6 +239,7 @@ elif choice == 'About Me':
 
 I’m passionate about learning fast and building practical AI applications!
 """)
+
 
 
 
