@@ -2,301 +2,260 @@ import streamlit as st
 import tensorflow as tf
 from PIL import Image
 import numpy as np
-import time
 import os
 
-# Page configuration
+# Configure page settings
 st.set_page_config(
-    page_title="TB X-ray Classifier",
+    page_title="TB X-Ray Classifier",
     page_icon="🫁",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Sidebar navigation with better styling
-st.sidebar.title("🧭 Navigation")
-choice = st.sidebar.selectbox(
-    'Choose a page:', 
-    ['🏠 Introduction', '🔬 TB X-Ray Prediction', '👤 About Me']
-)
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 3rem;
+        color: #2E86AB;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .prediction-box {
+        padding: 20px;
+        border-radius: 10px;
+        margin: 10px 0;
+    }
+    .normal-result {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    .tb-result {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Add helpful info in sidebar
-st.sidebar.markdown("---")
-st.sidebar.info(
-    "💡 **Tip:** For best results, use clear chest X-ray images "
-    "with good contrast and minimal artifacts."
-)
+# Sidebar navigation
+choice = st.sidebar.selectbox('Navigator', ['Introduction', 'TB X-Ray Prediction', 'About Me'])
 
-if choice == '🏠 Introduction':
-    st.title('🫁 Tuberculosis X-rays Classification')
+if choice == 'Introduction':
+    st.markdown('<h1 class="main-header">🫁 Tuberculosis X-rays Classification</h1>', unsafe_allow_html=True)
     
-    # Check if image exists, show placeholder if not
-    if os.path.exists('images.jpeg'):
-        st.image('images.jpeg', use_container_width=True)
-    else:
-        st.image(
-            'https://upload.wikimedia.org/wikipedia/commons/8/8c/Chest_X-ray_PA_1.jpg',
-            caption='Tuberculosis Detection from X-rays (Demo Image)',
-            use_container_width=True
-        )
-    
-    st.subheader(
-        'AI-Powered Tuberculosis Detection System'
-    )
+    # Check if image exists, use placeholder if not
+    try:
+        st.image('images.jpeg', use_column_width=True)
+    except:
+        st.info("📸 Image file 'images.jpeg' not found. Please ensure the image is in the correct directory.")
     
     st.markdown("""
-    ### 🎯 **What This System Does:**
-    This system uses deep learning to analyze chest X-ray images and help detect tuberculosis. 
-    The system preprocesses and augments image data, utilizes pre-trained deep learning models, 
-    and provides an intuitive interface for medical image analysis.
+    ### 🎯 Project Overview
     
-    ### ✨ **Key Features:**
-    - **🧠 Deep Learning:** Powered by ResNet50 architecture
-    - **⚡ Fast Processing:** Real-time image analysis
-    - **📊 Confidence Scores:** Detailed probability analysis
-    - **🎯 High Accuracy:** Trained on medical imaging data
-    - **🔒 Secure:** No data stored or transmitted
+    This AI-powered system leverages deep learning to analyze chest X-ray images for tuberculosis detection. 
+    The application provides:
     
-    ### 📋 **How to Use:**
-    1. Navigate to the **TB X-Ray Prediction** page
-    2. Upload a chest X-ray image (JPG, JPEG, or PNG)
-    3. Wait for the analysis
-    4. Review the prediction and confidence score
+    - **Automated TB Detection**: Uses a trained ResNet50 model for accurate classification
+    - **User-Friendly Interface**: Simple upload and instant results
+    - **Medical Support Tool**: Assists healthcare professionals in preliminary screening
     
-    ### ⚠️ **Important Disclaimer:**
-    This tool is for educational and research purposes only. 
-    Always consult healthcare professionals for medical diagnosis.
+    ### 🔬 How It Works
+    
+    1. **Image Preprocessing**: Uploaded X-rays are resized and normalized
+    2. **Deep Learning Analysis**: ResNet50 model analyzes the image features
+    3. **Classification**: Returns probability scores for Normal vs Tuberculosis
+    4. **Results Display**: Shows prediction with confidence percentage
+    
+    ### ⚠️ Important Disclaimer
+    
+    This tool is designed for educational and research purposes. It should **NOT** replace professional medical diagnosis. 
+    Always consult qualified healthcare professionals for medical decisions.
     """)
-    
-    # Add some metrics for visual appeal
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Model Type", "ResNet50")
-    with col2:
-        st.metric("Classes", "2")
-    with col3:
-        st.metric("Input Size", "224x224")
 
-elif choice == '🔬 TB X-Ray Prediction':
-    MODEL_PATH = '/content/tb_classifier_resnet50.keras'
+elif choice == 'TB X-Ray Prediction':
+    MODEL_PATH = 'tb_classifier_resnet50.keras'
     IMG_SIZE = 224
     CATEGORIES = ['Normal', 'Tuberculosis']
-    
-    # Enhanced model loading with better error handling
-    @st.cache_resource(show_spinner=True)
+
+    # Load Model with better error handling
+    @st.cache_resource
     def load_model(path):
-        """Loads the pre-trained Keras model with enhanced error handling."""
+        """Loads the pre-trained Keras model with comprehensive error handling."""
+        if not os.path.exists(path):
+            st.error(f"❌ Model file '{path}' not found. Please ensure the model is in the correct directory.")
+            return None
+        
         try:
-            uploaded_model = st.file_uploader("Upload tb_classifier_resnet50.keras", type=["keras", "h5"])
-            if uploaded_model:
-                with open("tb_classifier_resnet50.keras", "wb") as f:
-                    f.write(uploaded_model.getbuffer())
-            MODEL_PATH = "tb_classifier_resnet50.keras"
-            
             model = tf.keras.models.load_model(path)
             st.success("✅ Model loaded successfully!")
             return model
         except Exception as e:
-            st.error(f"❌ Error loading model: {e}")
+            st.error(f"❌ Error loading model: {str(e)}")
+            st.info("Please check if the model file is valid and compatible with the current TensorFlow version.")
             return None
 
-    def validate_image(image):
-        """Basic image validation."""
-        width, height = image.size
-        if width < 50 or height < 50:
-            st.warning("⚠️ Image seems very small. Results may not be accurate.")
-            return False
-        return True
-
-    def preprocess_image(image, target_size):
-        """Enhanced image preprocessing."""
-        # Resize with high-quality resampling
-        image_resized = image.resize((target_size, target_size), Image.LANCZOS)
+    def preprocess_image(image, img_size):
+        """Preprocess the uploaded image for model prediction."""
+        # Convert to RGB if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Resize image
+        image_resized = image.resize((img_size, img_size))
         
         # Convert to array and normalize
         img_array = tf.keras.preprocessing.image.img_to_array(image_resized)
         img_array = np.expand_dims(img_array, axis=0)  # Create batch dimension
-        img_array = img_array.astype('float32') / 255.0  # Normalize to [0,1]
+        img_array = img_array / 255.0  # Normalize to [0,1]
         
         return img_array
 
     # UI Elements
-    st.title("🔬 TB X-Ray Image Classification")
-    st.markdown("""
-    Upload a chest X-ray image to get an AI-powered analysis for tuberculosis detection.
-    The system will analyze the image and provide a prediction with confidence scores.
-    """)
+    st.title("🫁 TB X-Ray Image Classification")
+    st.write("Upload a chest X-ray image to classify it as Normal or containing Tuberculosis.")
     
+    # Create columns for better layout
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        uploaded_file = st.file_uploader(
+            "Choose an X-ray image...", 
+            type=["jpg", "jpeg", "png"],
+            help="Upload a clear chest X-ray image in JPG, JPEG, or PNG format"
+        )
+    
+    with col2:
+        if uploaded_file is not None:
+            # Display uploaded image
+            image = Image.open(uploaded_file)
+            st.image(image, caption='Uploaded X-Ray Image', use_column_width=True)
+            
+            # Show image details
+            st.write(f"**Image size:** {image.size}")
+            st.write(f"**Image mode:** {image.mode}")
+
     # Load model
     model = load_model(MODEL_PATH)
     
-    if model is not None:
-        # Display model info
-        with st.expander("🔍 Model Information"):
-            st.write(f"**Model Architecture:** {type(model).__name__}")
-            st.write(f"**Input Shape:** {model.input_shape}")
-            st.write(f"**Output Shape:** {model.output_shape}")
-            st.write(f"**Total Parameters:** {model.count_params():,}")
+    if uploaded_file is not None and model is not None:
+        # Prediction section
+        st.markdown("---")
+        st.subheader("🔍 Analysis Results")
         
-        # File uploader with better styling
-        uploaded_file = st.file_uploader(
-            "📁 Choose a chest X-ray image...", 
-            type=["jpg", "jpeg", "png"],
-            help="Supported formats: JPG, JPEG, PNG. Maximum file size: 200MB"
-        )
-
-        if uploaded_file is not None:
-            try:
-                # Load and display image
-                image = Image.open(uploaded_file).convert('RGB')
-                
-                # Validate image
-                if not validate_image(image):
-                    st.stop()
-                
-                st.image(image, caption='📸 Uploaded X-ray Image', use_container_width=True)
-                
-                # Show image details
-                with st.expander("📊 Image Details"):
-                    st.write(f"**Filename:** {uploaded_file.name}")
-                    st.write(f"**Size:** {image.size}")
-                    st.write(f"**Mode:** {image.mode}")
-                    st.write(f"**File Size:** {uploaded_file.size:,} bytes")
-
-                # Preprocess image
-                with st.spinner('🔄 Preprocessing image...'):
-                    img_array = preprocess_image(image, IMG_SIZE)
-
-                # Make prediction with timing
-                with st.spinner('🧠 AI is analyzing the X-ray...'):
-                    start_time = time.time()
-                    prediction = model.predict(img_array, verbose=0)
-                    inference_time = (time.time() - start_time) * 1000  # Convert to ms
-                    
-                    # Calculate probabilities and confidence
-                    score = tf.nn.softmax(prediction[0])
-                    class_index = np.argmax(score)
-                    class_name = CATEGORIES[class_index]
-                    confidence = 100 * np.max(score)
-                    uncertainty = 1 - np.max(score)
-
-                # Display results with better formatting
-                st.markdown("## 📊 Analysis Results")
-                
-                # Main prediction with color coding
-                if class_name == "Tuberculosis":
-                    st.error(f"🚨 **Prediction:** {class_name}")
+        try:
+            # Preprocess image
+            img_array = preprocess_image(image, IMG_SIZE)
+            
+            # Make prediction
+            with st.spinner('🧠 Analyzing X-ray image...'):
+                prediction = model.predict(img_array, verbose=0)
+                score = tf.nn.softmax(prediction[0])
+                class_index = np.argmax(score)
+                class_name = CATEGORIES[class_index]
+                confidence = float(np.max(score) * 100)
+            
+            # Display results with styling
+            result_col1, result_col2 = st.columns([1, 1])
+            
+            with result_col1:
+                if class_name == 'Normal':
+                    st.markdown(f"""
+                    <div class="prediction-box normal-result">
+                        <h3>✅ Prediction: {class_name}</h3>
+                        <h4>Confidence: {confidence:.2f}%</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.success(f"✅ **Prediction:** {class_name}")
-
-                # Metrics in columns
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Confidence", f"{confidence:.2f}%")
-                with col2:
-                    st.metric("Uncertainty", f"{uncertainty:.3f}")
-                with col3:
-                    st.metric("Inference Time", f"{inference_time:.0f}ms")
-                with col4:
-                    confidence_level = "High" if confidence > 80 else "Medium" if confidence > 60 else "Low"
-                    st.metric("Confidence Level", confidence_level)
-
-                # Detailed probability breakdown
-                st.markdown("### 🎯 Detailed Probabilities")
+                    st.markdown(f"""
+                    <div class="prediction-box tb-result">
+                        <h3>⚠️ Prediction: {class_name}</h3>
+                        <h4>Confidence: {confidence:.2f}%</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with result_col2:
+                # Show probability distribution
+                st.subheader("📊 Probability Distribution")
+                prob_data = {
+                    'Class': CATEGORIES,
+                    'Probability': [float(score[i] * 100) for i in range(len(CATEGORIES))]
+                }
+                st.bar_chart(prob_data, x='Class', y='Probability')
+            
+            # Interpretation and recommendations
+            st.markdown("---")
+            st.subheader("💡 Interpretation")
+            
+            if confidence > 80:
+                confidence_level = "High"
+                confidence_color = "🟢"
+            elif confidence > 60:
+                confidence_level = "Medium"
+                confidence_color = "🟡"
+            else:
+                confidence_level = "Low"
+                confidence_color = "🔴"
+            
+            st.write(f"{confidence_color} **Confidence Level:** {confidence_level}")
+            
+            if class_name == 'Tuberculosis':
+                st.warning("""
+                ⚠️ **Important:** This result suggests possible tuberculosis indicators. 
+                Please consult a healthcare professional immediately for proper medical evaluation and testing.
+                """)
+            else:
+                st.info("""
+                ℹ️ The analysis suggests normal lung appearance. However, this tool is not a substitute 
+                for professional medical diagnosis. Regular health check-ups are recommended.
+                """)
                 
-                for i, category in enumerate(CATEGORIES):
-                    prob = float(score[i]) * 100
-                    is_predicted = i == class_index
-                    
-                    # Create progress bar with custom styling
-                    if is_predicted:
-                        st.markdown(f"**🎯 {category}:** {prob:.2f}%")
-                    else:
-                        st.markdown(f"**{category}:** {prob:.2f}%")
-                    
-                    st.progress(prob / 100)
-                    st.write("")  # Add spacing
+        except Exception as e:
+            st.error(f"❌ Error during prediction: {str(e)}")
+            st.info("Please try uploading a different image or check the image format.")
 
-                # Clinical interpretation
-                st.markdown("### 🏥 Clinical Interpretation")
-                
-                if confidence > 80:
-                    if class_name == "Tuberculosis":
-                        st.warning(
-                            "⚠️ **High confidence TB detection.** "
-                            "This result suggests possible tuberculosis. "
-                            "Immediate medical consultation is strongly recommended."
-                        )
-                    else:
-                        st.info(
-                            "ℹ️ **High confidence normal classification.** "
-                            "The X-ray appears normal with high confidence. "
-                            "Regular health check-ups are still recommended."
-                        )
-                else:
-                    st.info(
-                        "ℹ️ **Moderate/Low confidence prediction.** "
-                        "The AI is less certain about this result. "
-                        "Additional medical imaging or consultation is recommended."
-                    )
-
-                # Disclaimer
-                st.markdown("---")
-                st.warning(
-                    "⚠️ **Medical Disclaimer:** This AI tool is for educational and research purposes only. "
-                    "It should not be used as a substitute for professional medical diagnosis. "
-                    "Always consult qualified healthcare professionals for medical advice."
-                )
-
-            except Exception as e:
-                st.error(f"❌ Error processing image: {str(e)}")
-                st.info("Please try uploading a different image or check the file format.")
-
-elif choice == '👤 About Me':
-    st.title('👩‍💻 About the Creator')
+elif choice == 'About Me':
+    st.title('👩‍💻 Creator Info')
     
-    # Profile image with fallback
-    if os.path.exists('AboutMe.webp'):
-        st.image('AboutMe.webp', width=200)
-    else:
-        st.info("💼 Profile image not available")
+    # Check if about image exists
+    try:
+        st.image('AboutMe.webp', width=300)
+    except:
+        st.info("📸 Profile image 'AboutMe.webp' not found.")
     
+    # Professional profile with better formatting
     st.markdown("""
-    ### Krishnamoorthy
-        
-    📧 **Contact:** mkrish818@gmail.com
+    ## 🚀 Developer Profile
     
-    ### 🛠️ **Technical Expertise**
-    - **Computer Vision:** Medical image analysis, Deep learning architectures
-    - **Deep Learning:** TensorFlow, Keras, PyTorch
-    - **Python Development:** Streamlit, Flask, Data Science libraries
-    - **Healthcare AI:** Medical imaging, Diagnostic systems
+    **Name:** Krishnamoorthy K  
+    **Email:** mkrish818@gmail.com  
     
-    ### 🌟 **Professional Qualities**
-    - **Quick Learner:** Rapidly adapts to new technologies and methodologies
-    - **Problem Solver:** Passionate about solving real-world challenges with AI
-    - **Innovation-Driven:** Constantly exploring cutting-edge solutions
-    - **Detail-Oriented:** Ensures high-quality, reliable implementations
+    ### 🛠️ Technical Skills
+    - **Computer Vision** - Image processing and analysis
+    - **Deep Learning** - Neural networks and model development  
+    - **Python** - Data science and machine learning
+    - **TensorFlow/Keras** - Deep learning frameworks
+    - **Streamlit** - Web application development
     
-    ### 🎯 **Mission**
-    Developing AI-powered solutions that make healthcare more accessible and accurate. 
-    I believe technology can bridge gaps in medical diagnosis, especially in regions 
-    where specialized healthcare resources are limited.
+    ### 💡 About Me
+    I am passionate about leveraging artificial intelligence to solve real-world problems, 
+    particularly in healthcare and medical imaging. I enjoy learning new technologies and 
+    adapting quickly to evolving environments in the field of AI and machine learning.
     
-    ### 🚀 **Current Focus**
-    - Medical image analysis for early disease detection
-    - Democratizing AI tools for healthcare applications
-    - Building user-friendly interfaces for complex AI systems
+    ### 🎯 Project Goals
+    This TB classification system demonstrates the potential of AI in medical screening, 
+    aiming to assist healthcare professionals in early detection and diagnosis.
     
     ---
-    
-    *"Passionate about leveraging AI to create meaningful impact in healthcare and beyond!"*
-    
-    ### 🤝 **Let's Connect**
-    Feel free to reach out for collaborations, any questions about this project!
+    *Feel free to reach out for collaborations or discussions about AI in healthcare!*
     """)
-    
 
-
-
-
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: gray; padding: 20px;'>
+    <p>🔬 TB X-Ray Classification System | Built with Streamlit & TensorFlow</p>
+    <p>⚠️ For educational and research purposes only - Not for clinical diagnosis</p>
+</div>
+""", unsafe_allow_html=True)
