@@ -1,261 +1,171 @@
 import streamlit as st
-import tensorflow as tf
-from PIL import Image
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import os
+import cv2
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications import ResNet50, VGG16, EfficientNetB0
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
+from tensorflow.keras.optimizers import Adam
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 
-# Configure page settings
-st.set_page_config(
-    page_title="TB X-Ray Classifier",
-    page_icon="🫁",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# -------------------------------
+# Sidebar Navigation
+# -------------------------------
+PAGES = ["Introduction", "EDA", "Training", "Evaluation", "Prediction"]
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", PAGES)
 
-# Custom CSS for better styling
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 3rem;
-        color: #2E86AB;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .prediction-box {
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .normal-result {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
-    }
-    .tb-result {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        color: #721c24;
-    }
-</style>
-""", unsafe_allow_html=True)
+# -------------------------------
+# Helper Functions
+# -------------------------------
+def load_image(img_file):
+    img = cv2.imdecode(np.frombuffer(img_file.read(), np.uint8), 1)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
 
-# Sidebar navigation
-choice = st.sidebar.selectbox('Navigator', ['Introduction', 'TB X-Ray Prediction', 'About Me'])
+def build_model(model_name, input_shape=(224,224,3)):
+    if model_name == "ResNet50":
+        base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
+    elif model_name == "VGG16":
+        base_model = VGG16(weights="imagenet", include_top=False, input_shape=input_shape)
+    else:
+        base_model = EfficientNetB0(weights="imagenet", include_top=False, input_shape=input_shape)
+    
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dropout(0.5)(x)
+    preds = Dense(1, activation="sigmoid")(x)
+    
+    model = Model(inputs=base_model.input, outputs=preds)
+    for layer in base_model.layers:
+        layer.trainable = False
+    model.compile(optimizer=Adam(1e-4), loss="binary_crossentropy", metrics=["accuracy"])
+    return model
 
-if choice == 'Introduction':
-    st.markdown('<h1 class="main-header">🫁 Tuberculosis X-rays Classification</h1>', unsafe_allow_html=True)
-    
-    # Check if image exists, use placeholder if not
-    try:
-        st.image('images.jpeg', use_column_width=True)
-    except:
-        st.info("📸 Image file 'images.jpeg' not found. Please ensure the image is in the correct directory.")
-    
-    st.markdown("""
-    ### 🎯 Project Overview
-    
-    This AI-powered system leverages deep learning to analyze chest X-ray images for tuberculosis detection. 
-    The application provides:
-    
-    - **Automated TB Detection**: Uses a trained ResNet50 model for accurate classification
-    - **User-Friendly Interface**: Simple upload and instant results
-    - **Medical Support Tool**: Assists healthcare professionals in preliminary screening
-    
-    ### 🔬 How It Works
-    
-    1. **Image Preprocessing**: Uploaded X-rays are resized and normalized
-    2. **Deep Learning Analysis**: ResNet50 model analyzes the image features
-    3. **Classification**: Returns probability scores for Normal vs Tuberculosis
-    4. **Results Display**: Shows prediction with confidence percentage
-    
-    ### ⚠️ Important Disclaimer
-    
-    This tool is designed for educational and research purposes. It should **NOT** replace professional medical diagnosis. 
-    Always consult qualified healthcare professionals for medical decisions.
+# -------------------------------
+# Pages
+# -------------------------------
+if page == "Introduction":
+    st.title("Tuberculosis Detection Using Deep Learning")
+    st.write("""
+    This app allows you to:
+    - Explore the dataset (EDA)
+    - Train deep learning models (ResNet50, VGG16, EfficientNetB0)
+    - Evaluate models with metrics and plots
+    - Upload chest X-ray images for TB prediction
     """)
 
-elif choice == 'TB X-Ray Prediction':
-    MODEL_PATH = 'tb_classifier_resnet50.keras'
-    IMG_SIZE = 224
-    CATEGORIES = ['Normal', 'Tuberculosis']
-
-    # Load Model with better error handling
-    @st.cache_resource
-    def load_model(path):
-        """Loads the pre-trained Keras model with comprehensive error handling."""
-        if not os.path.exists(path):
-            st.error(f"❌ Model file '{path}' not found. Please ensure the model is in the correct directory.")
-            return None
+elif page == "EDA":
+    st.title("Exploratory Data Analysis")
+    data_dir = st.text_input("Enter dataset directory path:")
+    if data_dir and os.path.exists(data_dir):
+        classes = os.listdir(data_dir)
+        st.write("Classes found:", classes)
         
-        try:
-            model = tf.keras.models.load_model(path)
-            st.success("✅ Model loaded successfully!")
-            return model
-        except Exception as e:
-            st.error(f"❌ Error loading model: {str(e)}")
-            st.info("Please check if the model file is valid and compatible with the current TensorFlow version.")
-            return None
-
-    def preprocess_image(image, img_size):
-        """Preprocess the uploaded image for model prediction."""
-        # Convert to RGB if needed
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
+        img_paths = []
+        labels = []
+        for c in classes:
+            c_dir = os.path.join(data_dir, c)
+            files = os.listdir(c_dir)[:5]
+            for f in files:
+                img_paths.append(os.path.join(c_dir, f))
+                labels.append(c)
         
-        # Resize image
-        image_resized = image.resize((img_size, img_size))
+        df = pd.DataFrame({"image": img_paths, "label": labels})
+        st.write(df.head())
         
-        # Convert to array and normalize
-        img_array = tf.keras.preprocessing.image.img_to_array(image_resized)
-        img_array = np.expand_dims(img_array, axis=0)  # Create batch dimension
-        img_array = img_array / 255.0  # Normalize to [0,1]
+        fig, ax = plt.subplots()
+        sns.countplot(x="label", data=df)
+        st.pyplot(fig)
         
-        return img_array
+        st.image(df["image"].iloc[0], caption=df["label"].iloc[0])
+    else:
+        st.warning("Please enter a valid dataset directory.")
 
-    # UI Elements
-    st.title("🫁 TB X-Ray Image Classification")
-    st.write("Upload a chest X-ray image to classify it as Normal or containing Tuberculosis.")
+elif page == "Training":
+    st.title("Model Training")
+    dataset_path = st.text_input("Dataset directory path (with class subfolders):")
+    model_choice = st.selectbox("Choose Model", ["ResNet50", "VGG16", "EfficientNetB0"])
+    epochs = st.slider("Epochs", 1, 20, 5)
+    batch_size = st.slider("Batch Size", 8, 64, 16)
     
-    # Create columns for better layout
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        uploaded_file = st.file_uploader(
-            "Choose an X-ray image...", 
-            type=["jpg", "jpeg", "png"],
-            help="Upload a clear chest X-ray image in JPG, JPEG, or PNG format"
-        )
-    
-    with col2:
-        if uploaded_file is not None:
-            # Display uploaded image
-            image = Image.open(uploaded_file)
-            st.image(image, caption='Uploaded X-Ray Image', use_column_width=True)
+    if st.button("Start Training"):
+        if dataset_path and os.path.exists(dataset_path):
+            datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)
+            train_gen = datagen.flow_from_directory(dataset_path, target_size=(224,224),
+                                                    batch_size=batch_size, class_mode="binary", subset="training")
+            val_gen = datagen.flow_from_directory(dataset_path, target_size=(224,224),
+                                                  batch_size=batch_size, class_mode="binary", subset="validation")
             
-            # Show image details
-            st.write(f"**Image size:** {image.size}")
-            st.write(f"**Image mode:** {image.mode}")
+            model = build_model(model_choice)
+            history = model.fit(train_gen, validation_data=val_gen, epochs=epochs)
+            
+            st.session_state["model"] = model
+            st.session_state["history"] = history.history
+            st.session_state["val_gen"] = val_gen
+            st.success("Training complete!")
+            
+            # Plot training curve
+            fig, ax = plt.subplots()
+            ax.plot(history.history['accuracy'], label='train acc')
+            ax.plot(history.history['val_accuracy'], label='val acc')
+            ax.legend()
+            st.pyplot(fig)
+        else:
+            st.error("Invalid dataset path.")
 
-    # Load model
-    model = load_model(MODEL_PATH)
-    
-    if uploaded_file is not None and model is not None:
-        # Prediction section
-        st.markdown("---")
-        st.subheader("🔍 Analysis Results")
+elif page == "Evaluation":
+    st.title("Model Evaluation")
+    if "model" in st.session_state and "val_gen" in st.session_state:
+        model = st.session_state["model"]
+        val_gen = st.session_state["val_gen"]
         
-        try:
-            # Preprocess image
-            img_array = preprocess_image(image, IMG_SIZE)
-            
-            # Make prediction
-            with st.spinner('🧠 Analyzing X-ray image...'):
-                prediction = model.predict(img_array, verbose=0)
-                score = tf.nn.softmax(prediction[0])
-                class_index = np.argmax(score)
-                class_name = CATEGORIES[class_index]
-                confidence = float(np.max(score) * 100)
-            
-            # Display results with styling
-            result_col1, result_col2 = st.columns([1, 1])
-            
-            with result_col1:
-                if class_name == 'Normal':
-                    st.markdown(f"""
-                    <div class="prediction-box normal-result">
-                        <h3>✅ Prediction: {class_name}</h3>
-                        <h4>Confidence: {confidence:.2f}%</h4>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="prediction-box tb-result">
-                        <h3>⚠️ Prediction: {class_name}</h3>
-                        <h4>Confidence: {confidence:.2f}%</h4>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with result_col2:
-                # Show probability distribution
-                st.subheader("📊 Probability Distribution")
-                prob_data = {
-                    'Class': CATEGORIES,
-                    'Probability': [float(score[i] * 100) for i in range(len(CATEGORIES))]
-                }
-                st.bar_chart(prob_data, x='Class', y='Probability')
-            
-            # Interpretation and recommendations
-            st.markdown("---")
-            st.subheader("💡 Interpretation")
-            
-            if confidence > 80:
-                confidence_level = "High"
-                confidence_color = "🟢"
-            elif confidence > 60:
-                confidence_level = "Medium"
-                confidence_color = "🟡"
-            else:
-                confidence_level = "Low"
-                confidence_color = "🔴"
-            
-            st.write(f"{confidence_color} **Confidence Level:** {confidence_level}")
-            
-            if class_name == 'Tuberculosis':
-                st.warning("""
-                ⚠️ **Important:** This result suggests possible tuberculosis indicators. 
-                Please consult a healthcare professional immediately for proper medical evaluation and testing.
-                """)
-            else:
-                st.info("""
-                ℹ️ The analysis suggests normal lung appearance. However, this tool is not a substitute 
-                for professional medical diagnosis. Regular health check-ups are recommended.
-                """)
-                
-        except Exception as e:
-            st.error(f"❌ Error during prediction: {str(e)}")
-            st.info("Please try uploading a different image or check the image format.")
+        # Predictions
+        y_true = val_gen.classes
+        y_pred_probs = model.predict(val_gen)
+        y_pred = (y_pred_probs > 0.5).astype(int)
+        
+        # Classification Report
+        report = classification_report(y_true, y_pred, target_names=list(val_gen.class_indices.keys()), output_dict=True)
+        st.write(pd.DataFrame(report).transpose())
+        
+        # Confusion Matrix
+        cm = confusion_matrix(y_true, y_pred)
+        fig, ax = plt.subplots()
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=val_gen.class_indices.keys(), yticklabels=val_gen.class_indices.keys())
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        st.pyplot(fig)
+        
+        # ROC Curve
+        if len(np.unique(y_true)) == 2:
+            roc_auc = roc_auc_score(y_true, y_pred_probs)
+            fpr, tpr, _ = roc_curve(y_true, y_pred_probs)
+            fig, ax = plt.subplots()
+            ax.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+            ax.plot([0,1],[0,1],'--')
+            ax.set_xlabel("False Positive Rate")
+            ax.set_ylabel("True Positive Rate")
+            ax.legend()
+            st.pyplot(fig)
+    else:
+        st.warning("Please train a model first.")
 
-elif choice == 'About Me':
-    st.title('👩‍💻 Creator Info')
-    
-    # Check if about image exists
-    try:
-        st.image('AboutMe.webp', width=300)
-    except:
-        st.info("📸 Profile image 'AboutMe.webp' not found.")
-    
-    # Professional profile with better formatting
-    st.markdown("""
-    ## 🚀 Developer Profile
-    
-    **Name:** Krishnamoorthy K  
-    **Email:** mkrish818@gmail.com  
-    
-    ### 🛠️ Technical Skills
-    - **Computer Vision** - Image processing and analysis
-    - **Deep Learning** - Neural networks and model development  
-    - **Python** - Data science and machine learning
-    - **TensorFlow/Keras** - Deep learning frameworks
-    - **Streamlit** - Web application development
-    
-    ### 💡 About Me
-    I am passionate about leveraging artificial intelligence to solve real-world problems, 
-    particularly in healthcare and medical imaging. I enjoy learning new technologies and 
-    adapting quickly to evolving environments in the field of AI and machine learning.
-    
-    ### 🎯 Project Goals
-    This TB classification system demonstrates the potential of AI in medical screening, 
-    aiming to assist healthcare professionals in early detection and diagnosis.
-    
-    ---
-    *Feel free to reach out for collaborations or discussions about AI in healthcare!*
-    """)
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: gray; padding: 20px;'>
-    <p>🔬 TB X-Ray Classification System | Built with Streamlit & TensorFlow</p>
-    <p>⚠️ For educational and research purposes only - Not for clinical diagnosis</p>
-</div>
-""", unsafe_allow_html=True)
+elif page == "Prediction":
+    st.title("TB Prediction")
+    uploaded_file = st.file_uploader("Upload a Chest X-ray", type=["jpg", "png", "jpeg"])
+    if uploaded_file and "model" in st.session_state:
+        img = load_image(uploaded_file)
+        st.image(img, caption="Uploaded Image")
+        
+        img_resized = cv2.resize(img, (224,224)) / 255.0
+        pred = st.session_state["model"].predict(np.expand_dims(img_resized, axis=0))[0][0]
+        label = "Tuberculosis" if pred > 0.5 else "Normal"
+        st.success(f"Prediction: {label} (score: {pred:.2f})")
+    elif uploaded_file:
+        st.warning("Train a model first before prediction.")
