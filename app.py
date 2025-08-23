@@ -75,7 +75,7 @@ def load_image(uploaded_file):
         return None
 
 def build_simple_model():
-    """Build a simple model for demonstration"""
+    """Build a ResNet50-based model for demonstration"""
     if not TF_AVAILABLE:
         return None
     
@@ -117,7 +117,7 @@ if page == "🏠 Home":
         
         **Features:**
         - 📊 Dataset analysis
-        - 🧠 Model training  
+        - 🧠 Model training (ResNet50)
         - 🔍 Image prediction
         - 📈 Performance evaluation
         """)
@@ -155,7 +155,7 @@ if page == "🏠 Home":
     
     steps = [
         "📊 **Analyze Data**: View sample medical data in the Data Analysis section",
-        "🧠 **Train Model**: Build an model (requires TensorFlow)",
+        "🧠 **Train Model**: Build a ResNet50 model (requires TensorFlow)",
         "🔍 **Make Predictions**: Upload X-ray images for TB detection",
         "📈 **View Results**: Check model performance and accuracy"
     ]
@@ -235,7 +235,8 @@ elif page == "🧠 Training":
     with col1:
         st.subheader("⚙️ Training Settings")
         
-        model_type = st.selectbox("Model Type", ["ResNet50", "VGG16", "EfficientNet"])
+        st.write("**Model Type:** ResNet50 (default)")
+        
         epochs = st.slider("Training Epochs", 1, 20, 5)
         batch_size = st.slider("Batch Size", 8, 32, 16)
         learning_rate = st.selectbox("Learning Rate", [0.001, 0.0001, 0.00001], index=1)
@@ -249,7 +250,7 @@ elif page == "🧠 Training":
     with col2:
         st.subheader("📋 Training Info")
         st.info(f"""
-        **Selected Model:** {model_type}
+        **Selected Model:** ResNet50
         **Epochs:** {epochs}
         **Batch Size:** {batch_size}
         **Learning Rate:** {learning_rate}
@@ -342,7 +343,7 @@ elif page == "🧠 Training":
         plt.close()
 
 elif page == "🔍 Prediction":
-    st.markdown('<h1 class="main-header">🔍 TB Prediction</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🔍 TB Prediction (ResNet50)</h1>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -357,7 +358,7 @@ elif page == "🔍 Prediction":
                 st.write(f"Image shape: {image.shape}")
     
     with col2:
-        st.subheader("🤖 Prediction")
+        st.subheader("🤖 Prediction (ResNet50)")
         
         if uploaded_file is not None and image is not None:
             if st.session_state.model is not None and TF_AVAILABLE:
@@ -387,7 +388,7 @@ elif page == "🔍 Prediction":
                         st.warning("⚕️ This is for educational purposes only. Consult a medical professional for actual diagnosis.")
             
             elif st.session_state.model is None:
-                st.warning("⚠️ No trained model available. Please train a model first.")
+                st.warning("⚠️ No trained model available. Please train the ResNet50 model first.")
                 
                 # Demo prediction
                 if st.button("🎭 Demo Prediction"):
@@ -451,27 +452,6 @@ elif page == "👨‍💻 About":
         st.markdown("""
         **Contact:**
         - 📧 Email: mkrish818@gmail.com
+        """)
         
-    # Philosophy
-    st.markdown("---")
-    st.markdown("### 💡 Mission")
-    st.markdown("""
-    > "to make healthcare accessible to everyone, everywhere."
-    
-    This TB detection system represents my commitment to leveraging 
-    for social good, particularly in healthcare where early detection can save lives.
-    """)
-    
-  
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; padding: 20px;">
-    TB Detection AI | Built with Streamlit | © 2025 Krishnamoorthy K
-</div>
-""", unsafe_allow_html=True)
-
-
-
-
-
+        st.markdown("---")
