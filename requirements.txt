@@ -1,8 +1,7 @@
-streamlit
-tensorflow
-keras
-opencv-python-headless
 numpy
 pandas
 matplotlib
-scikit-learn
+keras
+tensorflow
+Pillow
+ipython
