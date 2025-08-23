@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import os
 import cv2
 import tensorflow as tf
@@ -169,3 +168,4 @@ elif page == "Prediction":
         st.success(f"Prediction: {label} (score: {pred:.2f})")
     elif uploaded_file:
         st.warning("Train a model first before prediction.")
+
