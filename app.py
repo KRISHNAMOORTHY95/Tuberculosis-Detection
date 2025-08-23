@@ -104,7 +104,7 @@ def build_simple_model():
 
 # Pages
 if page == "🏠 Home":
-    st.markdown('<h1 class="main-header">🔬 TB Detection AI</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🔬 TB Detection </h1>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -117,7 +117,7 @@ if page == "🏠 Home":
         
         **Features:**
         - 📊 Dataset analysis
-        - 🧠 AI model training  
+        - 🧠 Model training  
         - 🔍 Image prediction
         - 📈 Performance evaluation
         """)
@@ -138,15 +138,14 @@ if page == "🏠 Home":
         
         **Key Facts:**
         - 📊 10+ million cases worldwide annually
-        - ⚡ AI can detect TB in seconds
-        - 🎯 95%+ accuracy with modern AI
+        - 🎯 95%+ accuracy
         - 🌍 Helps in underserved areas
         """)
         
         # Quick stats
         col_a, col_b = st.columns(2)
         col_a.metric("Global Cases", "10M+")
-        col_b.metric("AI Accuracy", "95%+")
+        col_b.metric("Accuracy", "95%+")
         col_a.metric("Detection Time", "<10sec")
         col_b.metric("Countries Affected", "200+")
     
@@ -156,7 +155,7 @@ if page == "🏠 Home":
     
     steps = [
         "📊 **Analyze Data**: View sample medical data in the Data Analysis section",
-        "🧠 **Train Model**: Build an AI model (requires TensorFlow)",
+        "🧠 **Train Model**: Build an model (requires TensorFlow)",
         "🔍 **Make Predictions**: Upload X-ray images for TB detection",
         "📈 **View Results**: Check model performance and accuracy"
     ]
@@ -221,7 +220,7 @@ elif page == "📊 Data Analysis":
         st.metric("Good Quality Images", f"{good_quality:.1f}%")
 
 elif page == "🧠 Training":
-    st.markdown('<h1 class="main-header">🧠 AI Model Training</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🧠 Model Training</h1>', unsafe_allow_html=True)
     
     if not TF_AVAILABLE:
         st.error("❌ TensorFlow is not available. Please install TensorFlow to enable training.")
@@ -358,7 +357,7 @@ elif page == "🔍 Prediction":
                 st.write(f"Image shape: {image.shape}")
     
     with col2:
-        st.subheader("🤖 AI Prediction")
+        st.subheader("🤖 Prediction")
         
         if uploaded_file is not None and image is not None:
             if st.session_state.model is not None and TF_AVAILABLE:
@@ -453,27 +452,6 @@ elif page == "👨‍💻 About":
         **Contact:**
         - 📧 Email: mkrish818@gmail.com
         
-        **Skills:**
-        - 🖼️ Computer Vision
-        - 🧠 Deep Learning  
-        - 🐍 Python Development
-        - ☁️ Cloud Deployment
-        """)
-    
-    st.markdown("---")
-    
-    # Skills and achievements
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 🛠️ Technical Skills")
-        skills = [
-            "Python & TensorFlow",
-            "Computer Vision",
-            "Streamlit Apps",
-            "Cloud Deployment"
-        ]
-    
     # Philosophy
     st.markdown("---")
     st.markdown("### 💡 Mission")
@@ -489,6 +467,7 @@ elif page == "👨‍💻 About":
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 20px;">
-    🔬 TB Detection AI | Built with ❤️ using Streamlit | © 2025 Krishnamoorthy K
+    🔬 TB Detection | Built with ❤️ using Streamlit | © 2025 Krishnamoorthy K
 </div>
 """, unsafe_allow_html=True)
+
