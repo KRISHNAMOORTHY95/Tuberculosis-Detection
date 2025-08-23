@@ -467,9 +467,10 @@ elif page == "👨‍💻 About":
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 20px;">
-    TB Detection | Built with Streamlit | © 2025 Krishnamoorthy K
+    TB Detection AI | Built with Streamlit | © 2025 Krishnamoorthy K
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
