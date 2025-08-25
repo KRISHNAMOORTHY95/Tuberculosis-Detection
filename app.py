@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from PIL import Image, ImageOps
 from sklearn.metrics import classification_report, confusion_matrix
 
@@ -165,3 +164,4 @@ elif page == "🔎 Prediction":
             st.write(f"**{pred}** (Confidence: {prob:.2f})")
         else:
             st.warning("⚠️ Please train the model first (simulated).")
+
