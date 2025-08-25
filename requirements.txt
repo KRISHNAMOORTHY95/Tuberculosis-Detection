@@ -4,4 +4,3 @@ pandas
 matplotlib
 Pillow
 tensorflow-cpu
-seaborn
