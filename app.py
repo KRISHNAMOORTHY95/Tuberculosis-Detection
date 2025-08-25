@@ -3,13 +3,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import json
 from PIL import Image
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import ResNet50, VGG16, EfficientNetB0
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import load_model
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 
 # -------------------------------
@@ -168,5 +165,6 @@ elif page == "Prediction":
         st.success(f"Prediction: {label} (score: {pred:.2f})")
     elif uploaded_file:
         st.warning("Train a model first before prediction.")
+
 
 
