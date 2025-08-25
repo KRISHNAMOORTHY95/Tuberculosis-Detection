@@ -3,7 +3,6 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import streamlit as st
 from PIL import Image
 import tensorflow as tf
@@ -217,3 +216,4 @@ elif page == "Prediction":
             st.success(f"Prediction: **{class_labels[result]}** (Confidence: {pred[0][result]:.2f})")
     else:
         st.error("Train the model first!")
+
