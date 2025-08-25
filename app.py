@@ -83,6 +83,82 @@ def create_sample_data():
     
     return df
 
+def generate_sample_xray_image(diagnosis, size=(224, 224)):
+    """Generate synthetic X-ray-like image for demonstration"""
+    np.random.seed(hash(diagnosis) % 2**32)
+    
+    # Create base lung structure
+    img = np.zeros(size, dtype=np.float32)
+    center_x, center_y = size[0] // 2, size[1] // 2
+    
+    # Create lung regions (two oval shapes)
+    y, x = np.ogrid[:size[0], :size[1]]
+    
+    # Left lung
+    left_lung = ((x - center_x + 60) ** 2 / 80**2) + ((y - center_y) ** 2 / 100**2) <= 1
+    # Right lung  
+    right_lung = ((x - center_x - 60) ** 2 / 80**2) + ((y - center_y) ** 2 / 100**2) <= 1
+    
+    # Base intensity for lung regions
+    img[left_lung | right_lung] = 0.3
+    
+    # Add ribs (horizontal lines)
+    for i in range(5, size[0], 25):
+        if i < size[0]:
+            img[i-2:i+2, :] = np.maximum(img[i-2:i+2, :], 0.6)
+    
+    # Add spine (vertical line in center)
+    spine_width = 8
+    img[:, center_y-spine_width//2:center_y+spine_width//2] = np.maximum(
+        img[:, center_y-spine_width//2:center_y+spine_width//2], 0.8)
+    
+    if diagnosis == 'TB':
+        # Add TB-like abnormalities (bright spots and patches)
+        for _ in range(np.random.randint(3, 8)):
+            # Random lesion position within lung area
+            lesion_x = np.random.randint(center_x-80, center_x+80)
+            lesion_y = np.random.randint(center_y-80, center_y+80)
+            lesion_size = np.random.randint(8, 20)
+            
+            # Create circular lesion
+            lesion_mask = ((x - lesion_x) ** 2 + (y - lesion_y) ** 2) <= lesion_size**2
+            lesion_mask = lesion_mask & (left_lung | right_lung)  # Only in lung areas
+            img[lesion_mask] = np.random.uniform(0.7, 1.0)
+    
+    # Add noise
+    noise = np.random.normal(0, 0.05, size)
+    img = np.clip(img + noise, 0, 1)
+    
+    return (img * 255).astype(np.uint8)
+
+def analyze_image_statistics(images, labels):
+    """Analyze pixel intensity statistics for images"""
+    stats = {
+        'mean_intensity': [],
+        'std_intensity': [],
+        'min_intensity': [],
+        'max_intensity': [],
+        'contrast': [],
+        'brightness': [],
+        'label': []
+    }
+    
+    for img, label in zip(images, labels):
+        if len(img.shape) == 3:
+            img_gray = np.mean(img, axis=2)  # Convert to grayscale if RGB
+        else:
+            img_gray = img
+            
+        stats['mean_intensity'].append(np.mean(img_gray))
+        stats['std_intensity'].append(np.std(img_gray))
+        stats['min_intensity'].append(np.min(img_gray))
+        stats['max_intensity'].append(np.max(img_gray))
+        stats['contrast'].append(np.std(img_gray) / np.mean(img_gray) if np.mean(img_gray) > 0 else 0)
+        stats['brightness'].append(np.mean(img_gray) / 255.0)
+        stats['label'].append(label)
+    
+    return pd.DataFrame(stats)
+
 def load_image(uploaded_file):
     """Load and display uploaded image"""
     try:
@@ -184,125 +260,312 @@ if page == "🏠 Home":
         st.markdown(f"{i}. {step}")
 
 elif page == "📊 Data Analysis(EDA)":
-    st.markdown('<h1 class="main-header">📊 Data Analysis</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">📊 Exploratory Data Analysis</h1>', unsafe_allow_html=True)
     
-    # Load sample data
-    df = create_sample_data()
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📋 Sample Dataset")
-        st.dataframe(df.head(10), use_container_width=True)
+    # Generate sample images for analysis
+    with st.spinner("Generating sample X-ray images for analysis..."):
+        # Create sample dataset
+        df = create_sample_data()
         
-        st.subheader("📊 Dataset Statistics")
-        st.write(f"Total Patients: {len(df)}")
-        st.write(f"Normal Cases: {len(df[df['Diagnosis'] == 'Normal'])}")
-        st.write(f"TB Cases: {len(df[df['Diagnosis'] == 'TB'])}")
-        st.write(f"Average Age: {df['Age'].mean():.1f} years")
+        # Generate sample images (smaller subset for demo)
+        sample_size = 50
+        sample_df = df.sample(n=sample_size, random_state=42).reset_index(drop=True)
+        
+        # Generate synthetic X-ray images
+        sample_images = []
+        sample_labels = []
+        
+        for idx, row in sample_df.iterrows():
+            img = generate_sample_xray_image(row['Diagnosis'])
+            sample_images.append(img)
+            sample_labels.append(row['Diagnosis'])
     
-    with col2:
-        st.subheader("📈 Diagnosis Distribution")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        diagnosis_counts = df['Diagnosis'].value_counts()
-        colors = ['#2E8B57', '#DC143C']
-        ax.pie(diagnosis_counts.values, labels=diagnosis_counts.index, 
-               autopct='%1.1f%%', colors=colors, startangle=90)
-        ax.set_title('TB vs Normal Cases')
+    # Main EDA tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Class Balance", "🖼️ Image Distribution", "📈 Pixel Statistics", "🔍 Visual Analysis"])
+    
+    with tab1:
+        st.subheader("🎯 Class Balance Analysis")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Class distribution pie chart
+            fig, ax = plt.subplots(figsize=(8, 6))
+            diagnosis_counts = df['Diagnosis'].value_counts()
+            colors = ['#2E8B57', '#DC143C']
+            wedges, texts, autotexts = ax.pie(diagnosis_counts.values, labels=diagnosis_counts.index, 
+                   autopct='%1.1f%%', colors=colors, startangle=90, explode=(0.05, 0.05))
+            ax.set_title('Class Distribution: TB vs Normal', fontsize=14, fontweight='bold')
+            
+            # Enhance text
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(12)
+            
+            st.pyplot(fig)
+            plt.close()
+        
+        with col2:
+            # Class balance metrics
+            normal_count = len(df[df['Diagnosis'] == 'Normal'])
+            tb_count = len(df[df['Diagnosis'] == 'TB'])
+            total_count = len(df)
+            
+            st.metric("Total Samples", f"{total_count:,}")
+            st.metric("Normal Cases", f"{normal_count:,} ({normal_count/total_count*100:.1f}%)")
+            st.metric("TB Cases", f"{tb_count:,} ({tb_count/total_count*100:.1f}%)")
+            
+            # Class imbalance ratio
+            imbalance_ratio = max(normal_count, tb_count) / min(normal_count, tb_count)
+            st.metric("Imbalance Ratio", f"{imbalance_ratio:.2f}:1")
+            
+            # Recommendations
+            st.markdown("### 💡 Class Balance Insights")
+            if imbalance_ratio > 2:
+                st.warning(f"⚠️ Significant class imbalance detected (ratio: {imbalance_ratio:.2f}:1)")
+                st.write("**Recommendations:**")
+                st.write("• Consider data augmentation for minority class")
+                st.write("• Use stratified sampling")
+                st.write("• Apply class weights in model training")
+            else:
+                st.success("✅ Classes are reasonably balanced")
+    
+    with tab2:
+        st.subheader("🖼️ Image Distribution Analysis")
+        
+        # Display sample images
+        st.markdown("### Sample X-ray Images")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Normal X-rays**")
+            normal_indices = [i for i, label in enumerate(sample_labels) if label == 'Normal']
+            if len(normal_indices) >= 4:
+                fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+                axes = axes.flatten()
+                for i in range(4):
+                    if i < len(normal_indices):
+                        idx = normal_indices[i]
+                        axes[i].imshow(sample_images[idx], cmap='gray')
+                        axes[i].set_title(f'Normal #{i+1}')
+                        axes[i].axis('off')
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close()
+        
+        with col2:
+            st.markdown("**TB X-rays**")
+            tb_indices = [i for i, label in enumerate(sample_labels) if label == 'TB']
+            if len(tb_indices) >= 4:
+                fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+                axes = axes.flatten()
+                for i in range(4):
+                    if i < len(tb_indices):
+                        idx = tb_indices[i]
+                        axes[i].imshow(sample_images[idx], cmap='gray')
+                        axes[i].set_title(f'TB #{i+1}')
+                        axes[i].axis('off')
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close()
+        
+        # Image dimensions analysis
+        st.markdown("---")
+        st.subheader("📐 Image Dimensions Analysis")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Image Height", f"{sample_images[0].shape[0]} px")
+        with col2:
+            st.metric("Image Width", f"{sample_images[0].shape[1]} px")
+        with col3:
+            st.metric("Color Channels", "1 (Grayscale)")
+    
+    with tab3:
+        st.subheader("📈 Pixel Intensity Statistics")
+        
+        # Analyze pixel statistics
+        stats_df = analyze_image_statistics(sample_images, sample_labels)
+        
+        # Overall statistics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 📊 Intensity Distribution by Class")
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Box plot for intensity distribution
+            normal_intensities = stats_df[stats_df['label'] == 'Normal']['mean_intensity']
+            tb_intensities = stats_df[stats_df['label'] == 'TB']['mean_intensity']
+            
+            ax.boxplot([normal_intensities, tb_intensities], 
+                      labels=['Normal', 'TB'],
+                      patch_artist=True,
+                      boxprops=dict(facecolor='lightblue'),
+                      medianprops=dict(color='red', linewidth=2))
+            
+            ax.set_ylabel('Mean Pixel Intensity')
+            ax.set_title('Pixel Intensity Distribution by Class')
+            ax.grid(True, alpha=0.3)
+            
+            st.pyplot(fig)
+            plt.close()
+        
+        with col2:
+            st.markdown("### 📈 Contrast Analysis")
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Histogram of contrast values
+            ax.hist(stats_df[stats_df['label'] == 'Normal']['contrast'], 
+                   alpha=0.6, label='Normal', color='green', bins=15)
+            ax.hist(stats_df[stats_df['label'] == 'TB']['contrast'], 
+                   alpha=0.6, label='TB', color='red', bins=15)
+            
+            ax.set_xlabel('Contrast Ratio')
+            ax.set_ylabel('Frequency')
+            ax.set_title('Contrast Distribution by Class')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            st.pyplot(fig)
+            plt.close()
+        
+        # Statistical summary table
+        st.markdown("---")
+        st.subheader("📋 Statistical Summary")
+        
+        summary_stats = stats_df.groupby('label').agg({
+            'mean_intensity': ['mean', 'std', 'min', 'max'],
+            'std_intensity': ['mean', 'std'],
+            'contrast': ['mean', 'std'],
+            'brightness': ['mean', 'std']
+        }).round(3)
+        
+        st.dataframe(summary_stats, use_container_width=True)
+        
+        # Key insights
+        col1, col2, col3, col4 = st.columns(4)
+        
+        normal_stats = stats_df[stats_df['label'] == 'Normal']
+        tb_stats = stats_df[stats_df['label'] == 'TB']
+        
+        with col1:
+            normal_mean = normal_stats['mean_intensity'].mean()
+            st.metric("Normal Avg Intensity", f"{normal_mean:.1f}")
+        
+        with col2:
+            tb_mean = tb_stats['mean_intensity'].mean()
+            st.metric("TB Avg Intensity", f"{tb_mean:.1f}")
+        
+        with col3:
+            normal_contrast = normal_stats['contrast'].mean()
+            st.metric("Normal Avg Contrast", f"{normal_contrast:.3f}")
+        
+        with col4:
+            tb_contrast = tb_stats['contrast'].mean()
+            st.metric("TB Avg Contrast", f"{tb_contrast:.3f}")
+    
+    with tab4:
+        st.subheader("🔍 Visual Analysis & Patterns")
+        
+        # Pixel intensity heatmaps
+        st.markdown("### 🌡️ Average Pixel Intensity Heatmaps")
+        
+        # Calculate average images for each class
+        normal_imgs = [sample_images[i] for i, label in enumerate(sample_labels) if label == 'Normal']
+        tb_imgs = [sample_images[i] for i, label in enumerate(sample_labels) if label == 'TB']
+        
+        if normal_imgs and tb_imgs:
+            avg_normal = np.mean(normal_imgs, axis=0)
+            avg_tb = np.mean(tb_imgs, axis=0)
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                fig, ax = plt.subplots(figsize=(6, 6))
+                im = ax.imshow(avg_normal, cmap='hot', interpolation='bilinear')
+                ax.set_title('Average Normal X-ray\n(Intensity Heatmap)')
+                ax.axis('off')
+                plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                st.pyplot(fig)
+                plt.close()
+            
+            with col2:
+                fig, ax = plt.subplots(figsize=(6, 6))
+                im = ax.imshow(avg_tb, cmap='hot', interpolation='bilinear')
+                ax.set_title('Average TB X-ray\n(Intensity Heatmap)')
+                ax.axis('off')
+                plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                st.pyplot(fig)
+                plt.close()
+            
+            with col3:
+                # Difference map
+                diff_map = np.abs(avg_tb - avg_normal)
+                fig, ax = plt.subplots(figsize=(6, 6))
+                im = ax.imshow(diff_map, cmap='viridis', interpolation='bilinear')
+                ax.set_title('Difference Map\n(TB - Normal)')
+                ax.axis('off')
+                plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                st.pyplot(fig)
+                plt.close()
+        
+        # Pixel value distributions
+        st.markdown("---")
+        st.markdown("### 📊 Pixel Value Distributions")
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+        
+        # Overall pixel distribution
+        all_normal_pixels = np.concatenate([img.flatten() for img in normal_imgs])
+        all_tb_pixels = np.concatenate([img.flatten() for img in tb_imgs])
+        
+        ax1.hist(all_normal_pixels, bins=50, alpha=0.6, label='Normal', color='green', density=True)
+        ax1.hist(all_tb_pixels, bins=50, alpha=0.6, label='TB', color='red', density=True)
+        ax1.set_xlabel('Pixel Intensity')
+        ax1.set_ylabel('Density')
+        ax1.set_title('Overall Pixel Intensity Distribution')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Cumulative distribution
+        ax2.hist(all_normal_pixels, bins=50, alpha=0.6, label='Normal', color='green', 
+                density=True, cumulative=True)
+        ax2.hist(all_tb_pixels, bins=50, alpha=0.6, label='TB', color='red', 
+                density=True, cumulative=True)
+        ax2.set_xlabel('Pixel Intensity')
+        ax2.set_ylabel('Cumulative Density')
+        ax2.set_title('Cumulative Pixel Distribution')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
         st.pyplot(fig)
         plt.close()
         
-        st.subheader("👥 Age Distribution")
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.hist(df['Age'], bins=15, alpha=0.7, color='skyblue', edgecolor='black')
-        ax.set_xlabel('Age (years)')
-        ax.set_ylabel('Number of Patients')
-        ax.set_title('Patient Age Distribution')
-        st.pyplot(fig)
-        plt.close()
-    
-    # Additional insights
-    st.markdown("---")
-    st.subheader("🔍 Key Insights")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        tb_rate = len(df[df['Diagnosis'] == 'TB']) / len(df) * 100
-        st.metric("TB Detection Rate", f"{tb_rate:.1f}%")
-    
-    with col2:
-        avg_age_tb = df[df['Diagnosis'] == 'TB']['Age'].mean()
-        st.metric("Avg Age (TB patients)", f"{avg_age_tb:.1f} years")
-    
-    with col3:
-        good_quality = len(df[df['Image_Quality'] == 'Good']) / len(df) * 100
-        st.metric("Good Quality Images", f"{good_quality:.1f}%")
-    
-    # Additional visualizations
-    st.markdown("---")
-    st.subheader("📊 Additional Analysis")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🎯 Confidence Score Distribution")
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.hist(df['Confidence_Score'], bins=20, alpha=0.7, color='orange', edgecolor='black')
-        ax.set_xlabel('Confidence Score')
-        ax.set_ylabel('Frequency')
-        ax.set_title('Model Confidence Distribution')
-        ax.axvline(df['Confidence_Score'].mean(), color='red', linestyle='--', 
-                  label=f'Mean: {df["Confidence_Score"].mean():.3f}')
-        ax.legend()
-        st.pyplot(fig)
-        plt.close()
-    
-    with col2:
-        st.subheader("🔍 Image Quality Analysis")
-        quality_counts = df['Image_Quality'].value_counts()
-        fig, ax = plt.subplots(figsize=(8, 4))
-        bars = ax.bar(quality_counts.index, quality_counts.values, 
-                     color=['#28a745', '#ffc107', '#dc3545'])
-        ax.set_xlabel('Image Quality')
-        ax.set_ylabel('Number of Images')
-        ax.set_title('Image Quality Distribution')
+        # Key findings
+        st.markdown("---")
+        st.markdown("### 🎯 Key EDA Findings")
         
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 1,
-                   f'{int(height)}', ha='center', va='bottom')
+        col1, col2 = st.columns(2)
         
-        st.pyplot(fig)
-        plt.close()
-    
-    # Correlation analysis
-    st.markdown("---")
-    st.subheader("🔗 Correlation Analysis")
-    
-    # Create correlation matrix for numerical data
-    numerical_df = df.select_dtypes(include=[np.number])
-    if not numerical_df.empty:
-        correlation_matrix = numerical_df.corr()
+        with col1:
+            st.markdown("**🔍 Visual Patterns:**")
+            st.write("• TB images show higher contrast regions")
+            st.write("• Abnormal bright spots visible in TB cases")
+            st.write("• Normal images have more uniform intensity")
+            st.write("• Lung boundaries clearly visible in both classes")
         
-        fig, ax = plt.subplots(figsize=(8, 6))
-        im = ax.imshow(correlation_matrix, cmap='coolwarm', aspect='auto')
-        ax.set_xticks(range(len(correlation_matrix.columns)))
-        ax.set_yticks(range(len(correlation_matrix.columns)))
-        ax.set_xticklabels(correlation_matrix.columns, rotation=45)
-        ax.set_yticklabels(correlation_matrix.columns)
-        
-        # Add correlation values to the plot
-        for i in range(len(correlation_matrix.columns)):
-            for j in range(len(correlation_matrix.columns)):
-                text = ax.text(j, i, f'{correlation_matrix.iloc[i, j]:.2f}',
-                             ha="center", va="center", color="black")
-        
-        plt.colorbar(im)
-        ax.set_title('Correlation Matrix')
-        st.pyplot(fig)
-        plt.close()
+        with col2:
+            st.markdown("**📊 Statistical Insights:**")
+            st.write(f"• TB images have {tb_mean:.1f} avg intensity vs {normal_mean:.1f} normal")
+            st.write(f"• TB images show {tb_contrast:.3f} contrast vs {normal_contrast:.3f} normal")
+            st.write("• Class imbalance requires attention")
+            st.write("• Image quality varies across dataset")
 
 elif page == "🧠 Training":
     st.markdown('<h1 class="main-header">🧠 Model Training</h1>', unsafe_allow_html=True)
