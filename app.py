@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
-import cv2
+from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import ResNet50, VGG16, EfficientNetB0
@@ -168,4 +168,5 @@ elif page == "Prediction":
         st.success(f"Prediction: {label} (score: {pred:.2f})")
     elif uploaded_file:
         st.warning("Train a model first before prediction.")
+
 
