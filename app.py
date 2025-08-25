@@ -49,6 +49,40 @@ if 'model' not in st.session_state:
 if 'history' not in st.session_state:
     st.session_state.history = None
 
+def create_sample_data():
+    """Create sample medical data for demonstration"""
+    np.random.seed(42)  # For reproducible results
+    
+    n_samples = 200
+    
+    # Generate sample data
+    patient_ids = [f"P{i:04d}" for i in range(1, n_samples + 1)]
+    ages = np.random.normal(45, 15, n_samples).astype(int)
+    ages = np.clip(ages, 18, 80)  # Keep ages between 18-80
+    
+    # Generate diagnoses (70% Normal, 30% TB)
+    diagnoses = np.random.choice(['Normal', 'TB'], n_samples, p=[0.7, 0.3])
+    
+    # Generate image quality
+    image_qualities = np.random.choice(['Good', 'Fair', 'Poor'], n_samples, p=[0.6, 0.3, 0.1])
+    
+    # Generate confidence scores (higher for good quality)
+    base_confidence = np.random.uniform(0.7, 0.95, n_samples)
+    quality_modifier = {'Good': 0, 'Fair': -0.1, 'Poor': -0.2}
+    confidences = [base_confidence[i] + quality_modifier[image_qualities[i]] for i in range(n_samples)]
+    confidences = np.clip(confidences, 0.5, 0.99)
+    
+    # Create DataFrame
+    df = pd.DataFrame({
+        'Patient_ID': patient_ids,
+        'Age': ages,
+        'Diagnosis': diagnoses,
+        'Image_Quality': image_qualities,
+        'Confidence_Score': confidences
+    })
+    
+    return df
+
 def load_image(uploaded_file):
     """Load and display uploaded image"""
     try:
@@ -149,7 +183,7 @@ if page == "🏠 Home":
     for i, step in enumerate(steps, 1):
         st.markdown(f"{i}. {step}")
 
-elif page == "📊 Data Analysis":
+elif page == "📊 Data Analysis(EDA)":
     st.markdown('<h1 class="main-header">📊 Data Analysis</h1>', unsafe_allow_html=True)
     
     # Load sample data
@@ -204,6 +238,71 @@ elif page == "📊 Data Analysis":
     with col3:
         good_quality = len(df[df['Image_Quality'] == 'Good']) / len(df) * 100
         st.metric("Good Quality Images", f"{good_quality:.1f}%")
+    
+    # Additional visualizations
+    st.markdown("---")
+    st.subheader("📊 Additional Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🎯 Confidence Score Distribution")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.hist(df['Confidence_Score'], bins=20, alpha=0.7, color='orange', edgecolor='black')
+        ax.set_xlabel('Confidence Score')
+        ax.set_ylabel('Frequency')
+        ax.set_title('Model Confidence Distribution')
+        ax.axvline(df['Confidence_Score'].mean(), color='red', linestyle='--', 
+                  label=f'Mean: {df["Confidence_Score"].mean():.3f}')
+        ax.legend()
+        st.pyplot(fig)
+        plt.close()
+    
+    with col2:
+        st.subheader("🔍 Image Quality Analysis")
+        quality_counts = df['Image_Quality'].value_counts()
+        fig, ax = plt.subplots(figsize=(8, 4))
+        bars = ax.bar(quality_counts.index, quality_counts.values, 
+                     color=['#28a745', '#ffc107', '#dc3545'])
+        ax.set_xlabel('Image Quality')
+        ax.set_ylabel('Number of Images')
+        ax.set_title('Image Quality Distribution')
+        
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                   f'{int(height)}', ha='center', va='bottom')
+        
+        st.pyplot(fig)
+        plt.close()
+    
+    # Correlation analysis
+    st.markdown("---")
+    st.subheader("🔗 Correlation Analysis")
+    
+    # Create correlation matrix for numerical data
+    numerical_df = df.select_dtypes(include=[np.number])
+    if not numerical_df.empty:
+        correlation_matrix = numerical_df.corr()
+        
+        fig, ax = plt.subplots(figsize=(8, 6))
+        im = ax.imshow(correlation_matrix, cmap='coolwarm', aspect='auto')
+        ax.set_xticks(range(len(correlation_matrix.columns)))
+        ax.set_yticks(range(len(correlation_matrix.columns)))
+        ax.set_xticklabels(correlation_matrix.columns, rotation=45)
+        ax.set_yticklabels(correlation_matrix.columns)
+        
+        # Add correlation values to the plot
+        for i in range(len(correlation_matrix.columns)):
+            for j in range(len(correlation_matrix.columns)):
+                text = ax.text(j, i, f'{correlation_matrix.iloc[i, j]:.2f}',
+                             ha="center", va="center", color="black")
+        
+        plt.colorbar(im)
+        ax.set_title('Correlation Matrix')
+        st.pyplot(fig)
+        plt.close()
 
 elif page == "🧠 Training":
     st.markdown('<h1 class="main-header">🧠 Model Training</h1>', unsafe_allow_html=True)
